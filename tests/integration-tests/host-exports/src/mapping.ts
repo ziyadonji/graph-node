@@ -71,7 +71,8 @@ function testBigDecimal(): void {
 
 function testEthereumAbi(): void {
   ethereumAbiSimpleCase();
-  ethereumAbiComplexCase();
+  ethereumAbiFixedSizedArrayCase();
+  ethereumAbiDynamicArrayCase();
 }
 
 function ethereumAbiSimpleCase(): void {
@@ -84,7 +85,7 @@ function ethereumAbiSimpleCase(): void {
   assert(address.toAddress() == decoded.toAddress(), "address ethereum encoded does not equal the decoded value");
 }
 
-function ethereumAbiComplexCase(): void {
+function ethereumAbiFixedSizedArrayCase(): void {
   let address = ethereum.Value.fromAddress(Address.fromString("0x0000000000000000000000000000000000000420"));
   let bigInt1 = ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(62));
   let bigInt2 = ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(63));
@@ -116,6 +117,46 @@ function ethereumAbiComplexCase(): void {
   let decodedFixedSizedArray = decodedTuple[0].toArray();
   let decodedBigInt1 = decodedFixedSizedArray[0].toBigInt();
   let decodedBigInt2 = decodedFixedSizedArray[1].toBigInt();
+  let decodedBool = decodedTuple[1].toBoolean();
+
+  assert(address.toAddress() == decodedAddress, "address ethereum encoded does not equal the decoded value");
+  assert(bigInt1.toBigInt() == decodedBigInt1, "uint256[0] ethereum encoded does not equal the decoded value");
+  assert(bigInt2.toBigInt() == decodedBigInt2, "uint256[1] ethereum encoded does not equal the decoded value");
+  assert(bool.toBoolean() == decodedBool, "boolean ethereum encoded does not equal the decoded value");
+}
+
+function ethereumAbiDynamicArrayCase(): void {
+  let address = ethereum.Value.fromAddress(Address.fromString("0x0000000000000000000000000000000000000420"));
+  let bigInt1 = ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(62));
+  let bigInt2 = ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(63));
+  let bool = ethereum.Value.fromBoolean(true);
+
+  let array = ethereum.Value.fromArray([
+    bigInt1,
+    bigInt2
+  ]);
+
+  let tupleArray: Array<ethereum.Value> = [
+    array,
+    bool
+  ];
+
+  let tuple = ethereum.Value.fromTuple(tupleArray as ethereum.Tuple);
+
+  let token: Array<ethereum.Value> = [
+    address,
+    tuple
+  ];
+
+  let encoded = ethereum.encode(ethereum.Value.fromTuple(token as ethereum.Tuple))!;
+
+  let decoded = ethereum.decode("(address,(uint256[],bool))", encoded).toTuple();
+
+  let decodedAddress = decoded[0].toAddress();
+  let decodedTuple = decoded[1].toTuple();
+  let decodedArray = decodedTuple[0].toArray();
+  let decodedBigInt1 = decodedArray[0].toBigInt();
+  let decodedBigInt2 = decodedArray[1].toBigInt();
   let decodedBool = decodedTuple[1].toBoolean();
 
   assert(address.toAddress() == decodedAddress, "address ethereum encoded does not equal the decoded value");
