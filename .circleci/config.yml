@@ -40,9 +40,19 @@ jobs:
           name: Run Rust formatter
           command: cargo fmt --all -- --check
 
+  release_check:
+    docker:
+      - image: rust
+    steps:
+      - checkout
+      - run:
+          name: Run cargo check in release mode
+          command: cargo check --release
+
 workflows:
   version: 2
   build_and_test:
     jobs:
       - rustfmt
       - unit_tests
+      - release_check
