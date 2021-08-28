@@ -156,10 +156,10 @@ jobs:
             ~/.cargo/git
           key: rustfmt-cargo-${{ hashFiles('**/Cargo.toml') }}
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get -y install libpq-dev
+      # - name: Install dependencies
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get -y install libpq-dev
 
       - name: Check formating
         uses: actions-rs/cargo@v1
