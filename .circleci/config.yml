@@ -1,7 +1,20 @@
 version: 2.1
-orbs:
-    hello: circleci/hello-build@0.0.5
+
+jobs:
+  rustfmt:
+    docker:
+      - image: rust
+    steps:
+      - checkout
+      - run:
+          name: Install cargo fmt
+          command: rustup component add rustfmt
+      - run:
+          name: Run Rust formatter
+          command: cargo fmt --all -- --check
+
 workflows:
-    "Hello Workflow":
-        jobs:
-          - hello/hello-build
+  version: 2
+  build_and_test:
+    jobs:
+      - rustfmt
