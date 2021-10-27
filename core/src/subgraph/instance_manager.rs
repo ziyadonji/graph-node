@@ -606,9 +606,15 @@ where
                 Ok((c, needs_restart)) => {
                     ctx = c;
 
+                    let non_fatal_errors_disabled = x;
+                    let advanced_block = ctx.inputs.store.block_ptr()? > current_ptr;
+                    let is_subgraph_failed = y;
+
+                    let should_restart_for_unfailure = non_fatal_errors_disabled && advanced_block && is_subgraph_failed;
+
                     deployment_failed.set(0.0);
 
-                    if needs_restart {
+                    if needs_restart || should_restart_for_unfailure {
                         // Cancel the stream for real
                         ctx.state
                             .instances
