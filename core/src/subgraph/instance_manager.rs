@@ -631,6 +631,7 @@ where
             }
 
             if block.trigger_count() > 0 {
+                info!(&logger, "TRIGGERS FOUND: {}", block.trigger_count());
                 subgraph_metrics
                     .block_trigger_count
                     .observe(block.trigger_count() as f64);
@@ -706,6 +707,7 @@ where
 
             match res {
                 Ok(needs_restart) => {
+                    info!(&logger, "ADVANCED TO BLOCK {}", block_ptr,);
                     // Once synced, no need to try to update the status again.
                     if !synced && is_deployment_synced(&block_ptr, chain_store.cached_head_ptr()?) {
                         // Updating the sync status is an one way operation.
