@@ -81,7 +81,7 @@ pub fn remove(
 ) -> Result<(), Error> {
     let filter = match older {
         Some(duration) => unused::Filter::UnusedLongerThan(duration),
-        None => unused::Filter::New,
+        None => unused::Filter::All,
     };
     let unused = store.list_unused_deployments(filter)?;
     let unused = match &deployment {

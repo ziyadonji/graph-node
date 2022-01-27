@@ -30,8 +30,8 @@ use std::time::{Duration, Instant};
 use tokio::task;
 
 const MINUTE: Duration = Duration::from_secs(60);
-const THRESHOLD: Duration = Duration::from_secs(30);
-// const THRESHOLD: Duration = Duration::from_secs(60 * 5);
+// const THRESHOLD: Duration = Duration::from_secs(30);
+const THRESHOLD: Duration = Duration::from_secs(60 * 5);
 
 const BUFFERED_BLOCK_STREAM_SIZE: usize = 100;
 const BUFFERED_FIREHOSE_STREAM_SIZE: usize = 1;
@@ -57,6 +57,7 @@ struct IndexingInputs<C: Blockchain> {
     deployment: DeploymentLocator,
     features: BTreeSet<SubgraphFeature>,
     start_blocks: Vec<BlockNumber>,
+    #[allow(unused)]
     stop_block: Option<BlockNumber>,
     store: Arc<dyn WritableStore>,
     triggers_adapter: Arc<C::TriggersAdapter>,
@@ -461,6 +462,7 @@ async fn new_block_stream<C: Blockchain>(
     inputs: Arc<IndexingInputs<C>>,
     filter: C::TriggerFilter,
     block_stream_metrics: Arc<BlockStreamMetrics>,
+    start_block: Option<BlockPtr>,
 ) -> Result<Box<dyn BlockStream<C>>, Error> {
     let chain = inputs.chain.cheap_clone();
     let is_firehose = chain.is_firehose_supported();
@@ -470,6 +472,7 @@ async fn new_block_stream<C: Blockchain>(
         false => BUFFERED_BLOCK_STREAM_SIZE,
     };
 
+    // println!("is_firehose {}", is_firehose);
     let block_stream = match is_firehose {
         true => chain.new_firehose_block_stream(
             inputs.deployment.clone(),
@@ -479,18 +482,14 @@ async fn new_block_stream<C: Blockchain>(
             block_stream_metrics.clone(),
             inputs.unified_api_version.clone(),
         ),
-        false => {
-            let start_block = inputs.store.block_ptr();
-
-            chain.new_polling_block_stream(
-                inputs.deployment.clone(),
-                inputs.start_blocks.clone(),
-                start_block,
-                Arc::new(filter.clone()),
-                block_stream_metrics.clone(),
-                inputs.unified_api_version.clone(),
-            )
-        }
+        false => chain.new_polling_block_stream(
+            inputs.deployment.clone(),
+            inputs.start_blocks.clone(),
+            start_block,
+            Arc::new(filter.clone()),
+            block_stream_metrics.clone(),
+            inputs.unified_api_version.clone(),
+        ),
     }
     .await?;
 
@@ -514,7 +513,7 @@ where
     let store_for_err = inputs.store.cheap_clone();
     let logger = ctx.state.logger.cheap_clone();
     let id_for_err = inputs.deployment.hash.clone();
-    let mut first_run = true;
+    let mut should_try_unfail_deterministic = true;
     let mut should_try_unfail_non_deterministic = true;
     let mut synced = false;
     let mut skip_pointer_updates_timer = Instant::now();
@@ -532,10 +531,18 @@ where
         let metrics = ctx.block_stream_metrics.clone();
         let filter = ctx.state.filter.clone();
         let stream_inputs = inputs.clone();
-        let mut block_stream = new_block_stream(stream_inputs, filter, metrics.cheap_clone())
-            .await?
-            .map_err(CancelableError::Error)
-            .cancelable(&block_stream_canceler, || Err(CancelableError::Cancel));
+        let mut deployment_head = inputs.store.block_ptr();
+
+        let mut block_stream = new_block_stream(
+            stream_inputs,
+            filter,
+            metrics.cheap_clone(),
+            deployment_head.clone(),
+        )
+        .await?
+        .map_err(CancelableError::Error)
+        .cancelable(&block_stream_canceler, || Err(CancelableError::Cancel));
+
         let chain = inputs.chain.clone();
         let chain_store = chain.chain_store();
 
@@ -551,11 +558,15 @@ where
 
         // Process events from the stream as long as no restart is needed
         loop {
+            // debug!(logger, "nothing?");
             let event = {
                 let _section = metrics.stopwatch.start_section("scan_blocks");
+                // debug!(logger, "hihi start scan_blocks section");
 
                 block_stream.next().await
             };
+            // debug!(logger, "got block? option::is_some {}", event.is_some());
+            // debug!(logger, "got block? result::is_ok {}", event.as_ref().map(|a| a.is_ok()).unwrap_or(false));
 
             let (block, cursor) = match event {
                 Some(Ok(BlockStreamEvent::ProcessBlock(block, cursor))) => (block, cursor),
@@ -620,47 +631,50 @@ where
 
             let block_ptr = block.ptr();
 
-            match inputs.stop_block.clone() {
+            let close_to_stop_block = matches!((&deployment_head, inputs.stop_block), (Some(head), Some(stop_block)) if (head.number + 30_000) >= stop_block);
+
+            match inputs.stop_block {
                 Some(stop_block) => {
                     if block_ptr.number > stop_block {
-                        info!(&logger, "stop block reached for subgraph");
+                        //     // run process block deployment_head - 1 hue
+                        //
+                        info!(&logger, "graphman stop block");
+                        info!(&logger, "KILL THIS HEHE");
+                        // panic!("KILL THIS HEHE");
                         return Ok(());
                     }
                 }
-                _ => {}
+                _ => {
+                    // my stop block hehe
+                    if block_ptr.number > 11_396_635 {
+                        // if block_ptr.number > 11_700_000 {
+                        // 11396635
+                        // 11_396_635
+                        info!(&logger, "-------------------------------------------------------------------------------------");
+                        info!(&logger, "my own stop block");
+                        return Ok(());
+                    }
+                }
             }
 
             if block.trigger_count() > 0 {
-                info!(&logger, "TRIGGERS FOUND: {}", block.trigger_count());
+                // info!(&logger, "TRIGGERS FOUND: {}", block.trigger_count());
                 subgraph_metrics
                     .block_trigger_count
                     .observe(block.trigger_count() as f64);
             } else {
-                info!(&logger, "NO TRIGGERS BOIZZZZ: {}", block.trigger_count());
+                // info!(&logger, "NO TRIGGERS BOIZZZZ: {}", block.trigger_count());
             }
 
-            let has_no_triggers_in_block = block.trigger_count() == 0;
-
-            // Since last update of empty block.
-            let time_elapsed = skip_pointer_updates_timer.elapsed();
-
-            let threshold_has_passed =
-                // For every THRESHOLD period amount of time, a pointer update should happen.
-                THRESHOLD.as_secs().checked_div(time_elapsed.as_secs()) == Some(0);
-
-            let should_skip_empty_block =
-                first_run || (has_no_triggers_in_block && threshold_has_passed);
-
-            if should_skip_empty_block {
-                info!(&logger, "SKIPPING BLOCK: {}", block_ptr);
-
-                skip_pointer_updates_timer = Instant::now();
+            if !close_to_stop_block && block.trigger_count() == 0 && skip_pointer_updates_timer.elapsed() <= THRESHOLD {
+                // info!(&logger, "SKIPPING BLOCK: {}", block_ptr);
                 continue;
             } else {
-                info!(
-                    &logger,
-                    "DIDN'T SKIP BLOCK: {}, time elapsed: {:?}", block_ptr, time_elapsed
-                );
+                // info!(
+                //     &logger,
+                //     "DIDN'T SKIP BLOCK: {}, time elapsed: {:?}", block_ptr, skip_pointer_updates_timer.elapsed()
+                // );
+                skip_pointer_updates_timer = Instant::now();
             }
 
             let start = Instant::now();
@@ -671,8 +685,8 @@ where
             // deterministic.
             //
             // As an optimization we check this only on the first run.
-            if first_run {
-                first_run = false;
+            if should_try_unfail_deterministic {
+                should_try_unfail_deterministic = false;
 
                 if let Some(current_ptr) = inputs.store.block_ptr() {
                     if let Some(parent_ptr) =
@@ -707,7 +721,8 @@ where
 
             match res {
                 Ok(needs_restart) => {
-                    info!(&logger, "ADVANCED TO BLOCK {}", block_ptr,);
+                    deployment_head = Some(block_ptr.clone());
+                    // info!(&logger, "ADVANCED TO BLOCK {}", block_ptr,);
                     // Once synced, no need to try to update the status again.
                     if !synced && is_deployment_synced(&block_ptr, chain_store.cached_head_ptr()?) {
                         // Updating the sync status is an one way operation.

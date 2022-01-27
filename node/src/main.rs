@@ -262,6 +262,7 @@ async fn main() {
             network_store.subgraph_store().clone(),
         );
 
+        dbg!(opt.disable_block_ingestor);
         if !opt.disable_block_ingestor {
             if ethereum_chains.len() > 0 {
                 let block_polling_interval = Duration::from_millis(opt.ethereum_polling_interval);

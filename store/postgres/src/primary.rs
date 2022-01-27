@@ -958,6 +958,8 @@ impl<'a> Connection<'a> {
 
         let conn = self.conn.as_ref();
 
+        println!("name {}", name);
+
         // Get the id of the given subgraph. If no subgraph with the
         // name exists, there is nothing to do
         let subgraph: Option<String> = s::table
@@ -965,6 +967,9 @@ impl<'a> Connection<'a> {
             .select(s::id)
             .first(conn)
             .optional()?;
+
+        println!("subgraph {:?}", subgraph);
+
         if let Some(subgraph) = subgraph {
             delete(v::table.filter(v::subgraph.eq(&subgraph))).execute(conn)?;
             delete(s::table.filter(s::id.eq(subgraph))).execute(conn)?;

@@ -66,6 +66,10 @@ pub async fn run(
     let firehose_networks = firehose_networks_by_kind.get(&BlockchainKind::Ethereum);
     let firehose_endpoints = firehose_networks.and_then(|v| v.networks.get(&network_name));
 
+    // for net in &eth_networks.networks {
+    //     dbg!(net);
+    // }
+
     let eth_adapters = match eth_networks.networks.get(&network_name) {
         Some(adapters) => adapters.clone(),
         None => {
@@ -107,6 +111,7 @@ pub async fn run(
         chain_head_update_listener,
         *REORG_THRESHOLD,
         // We assume the tested chain is always ingestible for now
+        // false,
         true,
     );
 
@@ -193,6 +198,8 @@ pub async fn run(
             .least_block_ptr(&subgraph_hash)
             .unwrap()
             .unwrap();
+
+        // println!("OIIIIIII {} {}", block_ptr.number, stop_block);
 
         if block_ptr.number >= stop_block {
             info!(
