@@ -30,6 +30,87 @@ use graph::data::subgraph::{calls_host_fn, DataSourceContext, Source};
 use crate::chain::Chain;
 use crate::trigger::{EthereumBlockTriggerType, EthereumTrigger, MappingTrigger};
 
+use graph::prelude::tokio;
+
+#[tokio::test]
+async fn hehe() {
+    use graph::prelude::ethabi::*;
+    use graph::prelude::ethabi::ParamType::*;
+    use graph::prelude::ethabi::StateMutability::*;
+    // use web3::types::*;
+    // use ethereum_types::*;
+    let tokenterminal_fn = Function { name: "issueBounty".to_string(), inputs: vec![Param { name: "_issuer".to_string(), kind: Address, internal_type: None }, Param { name: "_deadline".to_string(), kind: Uint(256), internal_type: None }, Param { name: "_data".to_string(), kind: String, internal_type: None }, Param { name: "_fulfillmentAmount".to_string(), kind: Uint(256), internal_type: None }, Param { name: "_arbiter".to_string(), kind: Address, internal_type: None }, Param { name: "_paysTokens".to_string(), kind: Bool, internal_type: None }, Param { name: "_tokenContract".to_string(), kind: Address, internal_type: None }], outputs: vec![Param { name: "".to_string(), kind: Uint(256), internal_type: None }],
+    // let tokenterminal_fn = Function { name: "issueBounty".to_string(), inputs: vec![Param { name: "_issuer".to_string(), kind: Address }, Param { name: "_deadline".to_string(), kind: Uint(256) }, Param { name: "_data".to_string(), kind: String }, Param { name: "_fulfillmentAmount".to_string(), kind: Uint(256) }, Param { name: "_arbiter".to_string(), kind: Address }, Param { name: "_paysTokens".to_string(), kind: Bool }, Param { name: "_tokenContract".to_string(), kind: Address }], outputs: vec![Param { name: "".to_string(), kind: Uint(256) }],
+    // constant: Some(false),
+    constant: false,
+    state_mutability: NonPayable };
+    let tokenterminal_data = hex::decode("788acd7e00000000000001010101010101010101010101104080040080800000010000000001000000000000000000000000000000000000000000000000000100000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffdc0000000004000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000002000028001").unwrap();
+
+    println!("sig: {}", tokenterminal_fn.signature());
+    println!("sig bts: {:?}", hex::decode("788acd7e").unwrap());
+    println!("stuff: {:?}", tokenterminal_fn.decode_input(&tokenterminal_data[4..]));
+        let hex_decode_bytes = hex::decode("ab834bab0000000000000000000000007be8076f4ea4a4ad08075c2508e481d6c946d12b000000000000000000000000f700b3d7b525f70092fc74128f8d578a683f25e90000000000000000000000008f0964189b28cd164ba1080a53962a26adafa51d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000d4c3c23349348fa67f6d044f1357c54d8e6a661b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007be8076f4ea4a4ad08075c2508e481d6c946d12b0000000000000000000000008f0964189b28cd164ba1080a53962a26adafa51d00000000000000000000000000000000000000000000000000000000000000000000000000000000000000005b3256965e7c3cf26e11fcaf296dfc8807c01073000000000000000000000000d4c3c23349348fa67f6d044f1357c54d8e6a661b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003e8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008e1bc9bf04000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000061e9844e0000000000000000000000000000000000000000000000000000000000000000dcae38d74061df89ea2ea74cb9dde60c668434e07bf7807470b44c2404c4324900000000000000000000000000000000000000000000000000000000000003e8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008e1bc9bf04000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000061e639ad0000000000000000000000000000000000000000000000000000000061ea2e83bf8f6c924869e67ab3fa63401173f12706640cb32f9dde705fe82f9734f0e4fd0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006a0000000000000000000000000000000000000000000000000000000000000074000000000000000000000000000000000000000000000000000000000000007e0000000000000000000000000000000000000000000000000000000000000088000000000000000000000000000000000000000000000000000000000000009200000000000000000000000000000000000000000000000000000000000000940000000000000000000000000000000000000000000000000000000000000001c000000000000000000000000000000000000000000000000000000000000001ce355fbc07931342c516655c51dd6d2632cc5ff92dd586bee0e9be17d030e260e7aa6e9f7837e6330ad097fcbd8b1dbc6fda1782dda2129ce6386e8bcaf921c96e355fbc07931342c516655c51dd6d2632cc5ff92dd586bee0e9be17d030e260e7aa6e9f7837e6330ad097fcbd8b1dbc6fda1782dda2129ce6386e8bcaf921c960000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006423b872dd0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f700b3d7b525f70092fc74128f8d578a683f25e9000000000000000000000000000000000000000000000000000000000000227e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006423b872dd0000000000000000000000008f0964189b28cd164ba1080a53962a26adafa51d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000227e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006400000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064000000000000000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap();
+
+    let function_abi = Function {
+        name: "atomicMatch_".to_string(),
+        inputs: vec![
+            // Param { name: "addrs".to_string(), kind: FixedArray(Box::new(Address), 14), },
+            // Param { name: "uints".to_string(), kind: FixedArray(Box::new(Uint(256)), 18), },
+            // Param { name: "feeMethodsSidesKindsHowToCalls".to_string(), kind: FixedArray(Box::new(Uint(8)), 8), },
+            // Param { name: "calldataBuy".to_string(), kind: Bytes, },
+            // Param { name: "calldataSell".to_string(), kind: Bytes, },
+            // Param { name: "replacementPatternBuy".to_string(), kind: Bytes, },
+            // Param { name: "replacementPatternSell".to_string(), kind: Bytes, },
+            // Param { name: "staticExtradataBuy".to_string(), kind: Bytes, },
+            // Param { name: "staticExtradataSell".to_string(), kind: Bytes, },
+            // Param { name: "vs".to_string(), kind: FixedArray(Box::new(Uint(8)), 2), },
+            // Param { name: "rssMetadata".to_string(), kind: FixedArray(Box::new(FixedBytes(32)), 5), }
+        Param { name: "addrs".to_string(), kind: FixedArray(Box::new(Address), 14), internal_type: None },
+        Param { name: "uints".to_string(), kind: FixedArray(Box::new(Uint(256)), 18), internal_type: None },
+        Param { name: "feeMethodsSidesKindsHowToCalls".to_string(), kind: FixedArray(Box::new(Uint(8)), 8), internal_type: None },
+        Param { name: "calldataBuy".to_string(), kind: Bytes, internal_type: None },
+        Param { name: "calldataSell".to_string(), kind: Bytes, internal_type: None },
+        Param { name: "replacementPatternBuy".to_string(), kind: Bytes, internal_type: None },
+        Param { name: "replacementPatternSell".to_string(), kind: Bytes, internal_type: None },
+        Param { name: "staticExtradataBuy".to_string(), kind: Bytes, internal_type: None },
+        Param { name: "staticExtradataSell".to_string(), kind: Bytes, internal_type: None },
+        Param { name: "vs".to_string(), kind: FixedArray(Box::new(Uint(8)), 2), internal_type: None },
+        Param { name: "rssMetadata".to_string(), kind: FixedArray(Box::new(FixedBytes(32)), 5), internal_type: None }
+        ],
+        outputs: vec![],
+        // constant: Some(false),
+        constant: false,
+        state_mutability: Payable
+    };
+        println!("hex_decode_bytes[4..] {:?}", function_abi.decode_input(&hex_decode_bytes[4..]));
+    println!("function abi signature {}", function_abi.signature());
+
+    use graph::prelude::web3;
+
+    let h = web3::transports::Http::new("https://eth-mainnet.alchemyapi.io/v2/mWSH9YlhpXfXymzLxptC1TE2CIy2QuMA").unwrap();
+
+    let web3 = web3::Web3::<graph::prelude::web3::transports::http::Http>::new(h.into());
+    // let web3 = web3::Web3::new(h.into());
+
+    let traces = web3.trace();
+
+    use graph::prelude::web3::futures::Future;
+    let hash = hex::decode("4e6b6ba98b5249874882099903a988d23e50d2746cbccab9ae25e020106e69b5").unwrap();
+    let trx = traces.transaction(web3::types::H256::from_slice(&hash)).await.unwrap();
+    println!("token terminal: trx: {:?}", trx[0]);
+    let hash = hex::decode("4499dc75facb4cd27894196aac00bcb0ffbe3d64de87105878451d5637662f90").unwrap();
+    let trx = traces.transaction(web3::types::H256::from_slice(&hash)).await.unwrap();
+    println!("artblocks: trx: {:?}", trx[0]);
+    // let trx = graph::block_on(traces.transaction(web3::types::H256::from_slice(&hash))).unwrap();
+    let fetched_data = [120, 138, 205, 126, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 64, 128, 4, 0, 128, 128, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 220, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 2, 128, 1];
+    let b = [120, 138, 205, 126, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 64, 128, 4, 0, 128, 128, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 220, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 2, 128, 1];
+    // assert_eq!(&fetched_data, &tokenterminal_data[..]);
+
+
+
+    assert!(true);
+}
+
 // The recommended kind is `ethereum`, `ethereum/contract` is accepted for backwards compatibility.
 const ETHEREUM_KINDS: &[&str] = &["ethereum/contract", "ethereum"];
 
