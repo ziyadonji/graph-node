@@ -152,7 +152,7 @@ pub mod prelude {
         QueryResultStream, Subscription, SubscriptionError, SubscriptionResult,
     };
     pub use crate::ext::futures::{
-        CancelGuard, CancelHandle, CancelToken, CancelableError, FutureExtension,
+        CancelGuard, CancelHandle, CancelToken, Cancelable, CancelableError, FutureExtension,
         SharedCancelGuard, StreamExtension,
     };
     pub use crate::impl_slog_value;

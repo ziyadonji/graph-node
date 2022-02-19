@@ -2,7 +2,7 @@ use crate::subgraph::context::IndexingContext;
 use crate::subgraph::error::BlockProcessingError;
 use crate::subgraph::inputs::IndexingInputs;
 use crate::subgraph::metrics::SubgraphInstanceMetrics;
-use crate::subgraph::stream::new_block_stream;
+use crate::subgraph::stream::BlockStreamManager;
 use crate::subgraph::SubgraphInstance;
 use atomic_refcell::AtomicRefCell;
 use fail::fail_point;
@@ -75,16 +75,12 @@ where
         loop {
             debug!(logger, "Starting or restarting subgraph");
 
-            let block_stream_canceler = CancelGuard::new();
-            let block_stream_cancel_handle = block_stream_canceler.handle();
-
             let metrics = self.ctx.block_stream_metrics.clone();
             let filter = self.ctx.state.filter.clone();
             let stream_inputs = self.inputs.clone();
-            let mut block_stream = new_block_stream(stream_inputs, filter, metrics.cheap_clone())
-                .await?
-                .map_err(CancelableError::Error)
-                .cancelable(&block_stream_canceler, || Err(CancelableError::Cancel));
+            let (mut block_stream, block_stream_canceler) =
+                BlockStreamManager::new(stream_inputs, filter, metrics.cheap_clone()).await?;
+            let block_stream_cancel_handle = block_stream_canceler.handle();
             let chain = self.inputs.chain.clone();
             let chain_store = chain.chain_store();
 

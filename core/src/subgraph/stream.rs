@@ -1,13 +1,13 @@
 use crate::subgraph::inputs::IndexingInputs;
 use graph::blockchain::block_stream::{BlockStream, BlockStreamMetrics, BufferedBlockStream};
 use graph::blockchain::Blockchain;
-use graph::prelude::{CheapClone, Error};
+use graph::prelude::*;
 use std::sync::Arc;
 
 const BUFFERED_BLOCK_STREAM_SIZE: usize = 100;
 const BUFFERED_FIREHOSE_STREAM_SIZE: usize = 1;
 
-pub async fn new_block_stream<C: Blockchain>(
+async fn new_block_stream<C: Blockchain>(
     inputs: Arc<IndexingInputs<C>>,
     filter: C::TriggerFilter,
     block_stream_metrics: Arc<BlockStreamMetrics>,
@@ -48,4 +48,34 @@ pub async fn new_block_stream<C: Blockchain>(
         block_stream,
         buffer_size,
     ))
+}
+
+pub struct BlockStreamManager<C: Blockchain, F> {
+    stream: Cancelable<Box<dyn BlockStream<C>>, F>,
+}
+
+impl<C, F> BlockStreamManager<C, F>
+where
+    C: Blockchain,
+    F: Fn() -> CancelableError,
+{
+    pub async fn new(
+        inputs: Arc<IndexingInputs<C>>,
+        filter: C::TriggerFilter,
+        block_stream_metrics: Arc<BlockStreamMetrics>,
+    ) -> Result<(Self, CancelGuard), Error> {
+        let block_stream_canceler = CancelGuard::new();
+
+        let stream = new_block_stream(inputs, filter, block_stream_metrics)
+            .await?
+            .map_err(CancelableError::Error)
+            .into_inner();
+
+        let stream = stream.cancelable(&block_stream_canceler, || Err(CancelableError::Cancel));
+
+        // expected struct `Box<dyn BlockStream<C, Item = Result<BlockStreamEvent<C>, graph::prelude::Error>>>`
+        // found struct `Cancelable<graph::prelude::futures::stream::MapErr<Box<dyn BlockStream<C, Item = Result<BlockStreamEvent<C>, graph::prelude::Error>>>, fn(graph::prelude::Error) -> graph::prelude::CancelableError<graph::prelude::Error> {graph::prelude::CancelableError::<graph::prelude::Error>::Error}>, [closure@core/src/subgraph/stream.rs:71:49: 71:80]>`
+
+        Ok((Self { stream }, block_stream_canceler))
+    }
 }
