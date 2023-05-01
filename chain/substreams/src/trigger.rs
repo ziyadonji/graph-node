@@ -254,6 +254,8 @@ fn decode_value(value: &crate::codec::value::Typed) -> Result<Value, MappingErro
     match value {
         Typed::Int32(new_value) => Ok(Value::Int(*new_value)),
 
+        // FIXME: We do not handle the `Float` graph-node type. Eventually, we might want to add it.
+
         Typed::Bigdecimal(new_value) => BigDecimal::from_str(new_value)
             .map(Value::BigDecimal)
             .map_err(|err| MappingError::Unknown(anyhow::Error::from(err))),

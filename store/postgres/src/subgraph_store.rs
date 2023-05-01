@@ -1107,6 +1107,37 @@ impl SubgraphStoreInner {
         store.drop_index(site, index_name).await
     }
 
+    // pub async fn drop_all_indexes_for_deployment(
+    //     &self,
+    //     deployment: &DeploymentLocator,
+    // ) -> Result<(), StoreError> {
+    //     let (store, site) = self.store(&deployment.hash)?;
+    //     let deploy = store.load_deployment(&site)?;
+    //     // TODO: loop through all indexes, and drop'em all
+    //     //store.drop_index(site, index_name).await
+    // }
+
+    pub async fn create_missing_indexes_for_deployment(
+        &self,
+        deployment: &DeploymentLocator,
+    ) -> Result<(), StoreError> {
+        let (store, site) = self.store(&deployment.hash)?;
+        let deploy = store.load_deployment(&site)?;
+        let subgraph_info = store.subgraph_info(&site)?;
+        let input_schema = subgraph_info.input;
+        // TODO: re-generate all missing indexes, based on what? where's the `graphql` schema?
+
+        let deployment = DeploymentCreate {
+            manifest: deployment.manifest,
+            start_block: deployment.start_block.clone(),
+            graft_base: None,
+            graft_block: None,
+            debug_fork: deployment.debug_fork,
+            history_blocks: None,
+        };
+        store.create_missing_indexes(&input_schema, deployment, site).await
+    }
+
     pub async fn set_account_like(
         &self,
         deployment: &DeploymentLocator,

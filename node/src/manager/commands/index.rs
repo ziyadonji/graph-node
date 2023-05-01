@@ -192,3 +192,22 @@ pub async fn drop(
     println!("Dropped index {index_name}");
     Ok(())
 }
+
+pub async fn create_missing(
+    store: Arc<SubgraphStore>,
+    pool: ConnectionPool,
+    search: DeploymentSearch,
+    index_name: &str,
+) -> Result<(), anyhow::Error> {
+    println!("Index creation started. Please wait.");
+    let deployment_locator = search.locate_unique(&pool)?;
+    match store.create_missing_indexes_for_deployment(&deployment_locator, index_name).await
+    {
+        Ok(()) => Ok(()),
+        Err(StoreError::Canceled) => {
+            eprintln!("Missing indexes creation attempt failed. Please retry.");
+            ::std::process::exit(1);
+        }
+        Err(other) => Err(anyhow::anyhow!(other)),
+    }
+}

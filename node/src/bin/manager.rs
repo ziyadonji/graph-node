@@ -576,6 +576,25 @@ pub enum StatsCommand {
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum IndexCommand {
+
+    /// Creates all missing indexes for a deployment.
+    ///
+    /// This command may be time-consuming.
+    CreateMissing {
+        /// The deployment (see `help info`).
+        #[clap(empty_values = false)]
+        deployment: DeploymentSearch,
+    },
+
+    /// Drops all indexes for a deployment.
+    ///
+    /// This will make all queries very slow. Use with caution.
+    DropAll {
+        /// The deployment (see `help info`).
+        #[clap(empty_values = false)]
+        deployment: DeploymentSearch,
+    },
+
     /// Creates a new database index.
     ///
     /// The new index will be created concurrenly for the provided entity and its fields. whose
@@ -1366,6 +1385,13 @@ async fn main() -> anyhow::Result<()> {
                 } => {
                     commands::index::drop(subgraph_store, primary_pool, deployment, &index_name)
                         .await
+                }
+                DropAll { deployment } => {
+                    commands::index::delete_all_indexes(subgraph_store, deployment)
+                        .await
+                }
+                CreateMissing { deployment} => {
+                    commands::index::create_missing(subgraph_store, primary_pool, deployment).await
                 }
             }
         }

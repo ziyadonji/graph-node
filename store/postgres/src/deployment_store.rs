@@ -231,6 +231,40 @@ impl DeploymentStore {
         })
     }
 
+    pub(crate) fn create_missing_indexes(
+        &self,
+        schema: &InputSchema,
+        deployment: DeploymentCreate,
+        site: Arc<Site>,
+    ) -> Result<(), StoreError> {
+        let conn = self.get_conn()?;
+        conn.transaction(|| -> Result<_, StoreError> {
+            let exists = deployment::exists(&conn, &site)?;
+            if !exists {
+                return Err(StoreError::Unknown(anyhow!(
+                            "The subgraph `{}` doesn't already exist.",
+                            &base.catalog.site.namespace,
+                        )));
+            };
+
+            let entities_with_causality_region =
+                deployment.manifest.entities_with_causality_region.clone();
+
+            let layout = Layout::create_relational_schema(
+                &conn,
+                site.clone(),
+                schema,
+                entities_with_causality_region.into_iter().collect(),
+            )?;
+
+            let ddl = layout.as_ddl()?;
+
+            println!("DDL: {}", ddl);
+
+            Ok(())
+        })
+    }
+
     pub(crate) fn load_deployment(
         &self,
         site: &Site,
