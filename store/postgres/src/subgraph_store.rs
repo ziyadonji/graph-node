@@ -1117,18 +1117,16 @@ impl SubgraphStoreInner {
     //     //store.drop_index(site, index_name).await
     // }
 
-    pub async fn create_missing_indexes_for_deployment(
+    pub async fn generate_ddl_for_deployment(
         &self,
         deployment: &DeploymentLocator,
-        _index_name: &str,
-    ) -> Result<(), StoreError> {
+    ) -> Result<String, StoreError> {
         let (store, site) = self.store(&deployment.hash)?;
         let deployment_entity = store.load_deployment(&site)?;
         let subgraph_info = store.subgraph_info(&site)?;
         let input_schema = subgraph_info.input;
-        // TODO: re-generate all missing indexes, based on what? where's the `graphql` schema?
 
-        store.create_missing_indexes(&input_schema, &deployment_entity.manifest, site)
+        store.generate_ddl(&input_schema, &deployment_entity.manifest, site)
     }
 
     pub async fn set_account_like(

@@ -231,12 +231,12 @@ impl DeploymentStore {
         })
     }
 
-    pub(crate) fn create_missing_indexes(
+    pub(crate) fn generate_ddl(
         &self,
         schema: &InputSchema,
         manifest: &SubgraphManifestEntity,
         site: Arc<Site>,
-    ) -> Result<(), StoreError> {
+    ) -> Result<String, StoreError> {
         let conn = self.get_conn()?;
         conn.transaction(|| -> Result<_, StoreError> {
             let exists = deployment::exists(&conn, &site)?;
@@ -253,9 +253,7 @@ impl DeploymentStore {
             let layout = Layout::new(site, &schema, catalog)?;
             let ddl = layout.as_ddl()?;
 
-            println!("DDL: {}", ddl);
-
-            Ok(())
+            Ok(ddl)
         })
     }
 

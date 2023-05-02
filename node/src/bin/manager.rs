@@ -579,22 +579,7 @@ pub enum IndexCommand {
     /// Creates all missing indexes for a deployment.
     ///
     /// This command may be time-consuming.
-    CreateMissing {
-        /// The deployment (see `help info`).
-        #[clap(empty_values = false)]
-        deployment: DeploymentSearch,
-        /// The Entity name.
-        ///
-        /// Can be expressed either in upper camel case (as its GraphQL definition) or in snake case
-        /// (as its SQL table name).
-        #[clap(empty_values = false)]
-        entity: String,
-    },
-
-    /// Drops all indexes for a deployment.
-    ///
-    /// This will make all queries very slow. Use with caution.
-    DropAll {
+    GenerateDDL {
         /// The deployment (see `help info`).
         #[clap(empty_values = false)]
         deployment: DeploymentSearch,
@@ -1391,12 +1376,8 @@ async fn main() -> anyhow::Result<()> {
                     commands::index::drop(subgraph_store, primary_pool, deployment, &index_name)
                         .await
                 }
-                DropAll { deployment } => {
-                    commands::index::create_missing(subgraph_store, primary_pool, deployment, &"none".to_string()).await
-                    //commands::index::delete_all_indexes(subgraph_store, deployment).await
-                }
-                CreateMissing { deployment, entity } => {
-                    commands::index::create_missing(subgraph_store, primary_pool, deployment, &entity).await
+                GenerateDDL { deployment } => {
+                    commands::index::generate_ddl(subgraph_store, primary_pool, deployment).await
                 }
             }
         }
