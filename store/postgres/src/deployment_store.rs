@@ -51,7 +51,7 @@ use crate::detail::ErrorDetail;
 use crate::dynds::DataSourcesTable;
 use crate::primary::DeploymentId;
 use crate::relational::index::{CreateIndex, Method};
-use crate::relational::{Layout, LayoutCache, SqlName, Table};
+use crate::relational::{Catalog, Layout, LayoutCache, SqlName, Table};
 use crate::relational_queries::FromEntityData;
 use crate::{advisory_lock, catalog, retry};
 use crate::{connection_pool::ConnectionPool, detail};
@@ -249,13 +249,8 @@ impl DeploymentStore {
             let entities_with_causality_region =
                 manifest.entities_with_causality_region.clone();
 
-            let layout = Layout::create_relational_schema(
-                &conn,
-                site.clone(),
-                schema,
-                entities_with_causality_region.into_iter().collect(),
-            )?;
-
+            let catalog = Catalog::for_creation(site.cheap_clone(), entities_with_causality_region.into_iter().collect());
+            let layout = Layout::new(site, &schema, catalog)?;
             let ddl = layout.as_ddl()?;
 
             println!("DDL: {}", ddl);

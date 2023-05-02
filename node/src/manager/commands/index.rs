@@ -199,7 +199,7 @@ pub async fn create_missing(
     search: DeploymentSearch,
     index_name: &str,
 ) -> Result<(), anyhow::Error> {
-    println!("Index creation started. Please wait.");
+    println!("Preparing missing indexes. Please wait.");
     let deployment_locator = search.locate_unique(&pool)?;
     match store
         .create_missing_indexes_for_deployment(&deployment_locator, index_name)
