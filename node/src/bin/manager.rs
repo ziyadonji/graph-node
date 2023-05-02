@@ -576,7 +576,6 @@ pub enum StatsCommand {
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum IndexCommand {
-
     /// Creates all missing indexes for a deployment.
     ///
     /// This command may be time-consuming.
@@ -584,6 +583,12 @@ pub enum IndexCommand {
         /// The deployment (see `help info`).
         #[clap(empty_values = false)]
         deployment: DeploymentSearch,
+        /// The Entity name.
+        ///
+        /// Can be expressed either in upper camel case (as its GraphQL definition) or in snake case
+        /// (as its SQL table name).
+        #[clap(empty_values = false)]
+        entity: String,
     },
 
     /// Drops all indexes for a deployment.
@@ -1387,11 +1392,11 @@ async fn main() -> anyhow::Result<()> {
                         .await
                 }
                 DropAll { deployment } => {
-                    commands::index::delete_all_indexes(subgraph_store, deployment)
-                        .await
+                    commands::index::create_missing(subgraph_store, primary_pool, deployment, &"none".to_string()).await
+                    //commands::index::delete_all_indexes(subgraph_store, deployment).await
                 }
-                CreateMissing { deployment} => {
-                    commands::index::create_missing(subgraph_store, primary_pool, deployment).await
+                CreateMissing { deployment, entity } => {
+                    commands::index::create_missing(subgraph_store, primary_pool, deployment, &entity).await
                 }
             }
         }

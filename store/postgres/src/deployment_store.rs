@@ -36,7 +36,7 @@ use std::time::{Duration, Instant};
 use graph::components::store::EntityCollection;
 use graph::components::subgraph::{ProofOfIndexingFinisher, ProofOfIndexingVersion};
 use graph::constraint_violation;
-use graph::data::subgraph::schema::{DeploymentCreate, SubgraphError, POI_OBJECT};
+use graph::data::subgraph::schema::{DeploymentCreate, SubgraphError, POI_OBJECT, SubgraphManifestEntity};
 use graph::prelude::{
     anyhow, debug, info, o, warn, web3, AttributeNames, BlockNumber, BlockPtr, CheapClone,
     DeploymentHash, DeploymentState, Entity, EntityModification, EntityQuery, Error, Logger,
@@ -234,7 +234,7 @@ impl DeploymentStore {
     pub(crate) fn create_missing_indexes(
         &self,
         schema: &InputSchema,
-        deployment: DeploymentCreate,
+        manifest: &SubgraphManifestEntity,
         site: Arc<Site>,
     ) -> Result<(), StoreError> {
         let conn = self.get_conn()?;
@@ -242,13 +242,12 @@ impl DeploymentStore {
             let exists = deployment::exists(&conn, &site)?;
             if !exists {
                 return Err(StoreError::Unknown(anyhow!(
-                            "The subgraph `{}` doesn't already exist.",
-                            &base.catalog.site.namespace,
-                        )));
+                    "Specified subgraph doesn't already exist.",
+                )));
             };
 
             let entities_with_causality_region =
-                deployment.manifest.entities_with_causality_region.clone();
+                manifest.entities_with_causality_region.clone();
 
             let layout = Layout::create_relational_schema(
                 &conn,
