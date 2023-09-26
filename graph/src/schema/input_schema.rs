@@ -467,6 +467,18 @@ impl InputSchema {
                 )
             })
     }
+
+    pub fn has_field_with_name(&self, entity_type: &EntityType, field: &str) -> bool {
+        let field = self.pool().lookup(field);
+
+        match field {
+            Some(field) => self
+                .type_info(entity_type.atom)
+                .map(|ti| ti.kind.is_object() && ti.fields.contains(&field))
+                .unwrap_or(false),
+            None => false,
+        }
+    }
 }
 
 /// Create a new pool that contains the names of all the types defined
