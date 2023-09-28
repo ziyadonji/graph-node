@@ -212,7 +212,7 @@ impl<C: Blockchain> HostExports<C> {
 
             // If an invalid field exists, find all and return an error
             if has_invalid_fields {
-                let invalid_fields: Vec<Word> = data
+                let mut invalid_fields: Vec<Word> = data
                     .iter()
                     .filter_map(|(field_name, _)| {
                         if !state
@@ -227,14 +227,16 @@ impl<C: Blockchain> HostExports<C> {
                     })
                     .collect();
 
+                invalid_fields.sort();
+
                 return Err(HostExportError::Deterministic(anyhow!(
-                    "Entity `{}` has fields not in schema: {}",
-                    key.entity_type,
+                    "Attempted to set undefined fields [{}] for the entity type `{}`. Make sure those fields are defined in the schema.",
                     invalid_fields
                         .iter()
                         .map(|f| f.as_str())
                         .collect::<Vec<_>>()
-                        .join(", ")
+                        .join(", "),
+                    key.entity_type
                 )));
             }
         }
