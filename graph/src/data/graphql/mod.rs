@@ -7,6 +7,8 @@ pub use ext::{DirectiveExt, DocumentExt, ObjectTypeExt, TypeExt, ValueExt};
 /// Utilities for working with GraphQL values.
 mod values;
 
+mod compact;
+
 /// Serializable wrapper around a GraphQL value.
 pub use self::serialization::SerializableValue;
 
