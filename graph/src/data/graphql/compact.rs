@@ -1,17 +1,37 @@
 #![allow(dead_code)]
 use std::convert::AsRef;
+use std::sync::Arc;
 use std::{collections::BTreeMap, str::FromStr};
 
 use graphql_parser::schema::{self as ps, Text};
 use thiserror::Error;
 
 use crate::data::value::Word;
+use crate::derive::CheapClone;
 
-struct Compactor;
+struct Compactor {
+    object_types: Vec<ObjectType>,
+    interfaces: Vec<InterfaceType>,
+}
 
 impl Compactor {
+    fn new() -> Self {
+        Self {
+            object_types: Vec::new(),
+            interfaces: Vec::new(),
+        }
+    }
+
     fn word<'a, T: Text<'a>>(&self, t: T::Value) -> Word {
         Word::from(t.as_ref())
+    }
+
+    fn add_object_type(&mut self, obj: ObjectType) {
+        self.object_types.push(obj);
+    }
+
+    fn add_interface(&mut self, int: InterfaceType) {
+        self.interfaces.push(int);
     }
 }
 
@@ -19,13 +39,24 @@ trait Compact<T>: Sized {
     fn compact(value: T, cpt: &mut Compactor) -> Self;
 }
 
-pub fn compact<'a, T: Text<'a>>(doc: ps::Document<'a, T>) -> Document {
-    let mut cpt = Compactor;
-    Document::compact(doc, &mut cpt)
+pub fn compact<'a, T: Text<'a>>(doc: ps::Document<'a, T>) -> Schema {
+    let mut cpt = Compactor::new();
+    let document = Document::compact(doc, &mut cpt);
+    Schema {
+        document,
+        object_types: cpt.object_types,
+        interfaces: cpt.interfaces,
+    }
 }
 
 fn word<'a, T: Text<'a>>(t: T::Value) -> Word {
     Word::from(t.as_ref())
+}
+
+pub struct Schema {
+    document: Document,
+    object_types: Vec<ObjectType>,
+    interfaces: Vec<InterfaceType>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -254,8 +285,11 @@ impl<'a, T: Text<'a>> Compact<ps::ScalarTypeExtension<'a, T>> for ScalarTypeExte
     }
 }
 
+#[derive(Debug, Clone, CheapClone, PartialEq)]
+pub struct ObjectType(Arc<ObjectTypeInner>);
+
 #[derive(Debug, Clone, PartialEq)]
-pub struct ObjectType {
+pub struct ObjectTypeInner {
     pub name: Word,
     pub implements_interfaces: Vec<Word>,
     pub directives: Vec<Directive>,
@@ -287,13 +321,66 @@ impl<'a, T: Text<'a>> Compact<ps::ObjectType<'a, T>> for ObjectType {
             .map(|field| Field::compact(field, cpt))
             .collect();
         let description = description.map(|d| Word::from(d));
-        Self {
+        let inner = ObjectTypeInner {
             name,
             implements_interfaces,
             directives,
             fields,
             description,
-        }
+        };
+        let obj = ObjectType(Arc::new(inner));
+        cpt.add_object_type(obj.clone());
+        obj
+    }
+}
+
+#[derive(Debug, Clone, CheapClone, PartialEq)]
+pub struct InterfaceType(Arc<InterfaceTypeInner>);
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct InterfaceTypeInner {
+    pub name: Word,
+    pub implements_interfaces: Vec<Word>,
+    pub directives: Vec<Directive>,
+    pub fields: Vec<Field>,
+    pub description: Option<Word>,
+}
+
+impl<'a, T: Text<'a>> Compact<ps::InterfaceType<'a, T>> for InterfaceType {
+    fn compact(int: ps::InterfaceType<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::InterfaceType {
+            position: _,
+            description,
+            name,
+            implements_interfaces,
+            directives,
+            fields,
+        } = int;
+
+        let name = cpt.word::<T>(name);
+        let implements_interfaces = implements_interfaces
+            .into_iter()
+            .map(|name| cpt.word::<T>(name))
+            .collect();
+        let directives = directives
+            .into_iter()
+            .map(|dir| Directive::compact(dir, cpt))
+            .collect();
+        let fields = fields
+            .into_iter()
+            .map(|field| Field::compact(field, cpt))
+            .collect();
+        let description = description.map(|d| Word::from(d));
+        let inner = InterfaceTypeInner {
+            name,
+            implements_interfaces,
+            directives,
+            fields,
+            description,
+        };
+        let intf = InterfaceType(Arc::new(inner));
+        cpt.add_interface(intf.clone());
+        intf
     }
 }
 
@@ -449,50 +536,6 @@ impl<'a, T: Text<'a>> Compact<ps::InputValue<'a, T>> for InputValue {
             value_type,
             default_value,
             directives,
-            description,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct InterfaceType {
-    pub name: Word,
-    pub implements_interfaces: Vec<Word>,
-    pub directives: Vec<Directive>,
-    pub fields: Vec<Field>,
-    pub description: Option<Word>,
-}
-
-impl<'a, T: Text<'a>> Compact<ps::InterfaceType<'a, T>> for InterfaceType {
-    fn compact(int: ps::InterfaceType<'a, T>, cpt: &mut Compactor) -> Self {
-        let ps::InterfaceType {
-            position: _,
-            description,
-            name,
-            implements_interfaces,
-            directives,
-            fields,
-        } = int;
-
-        let name = cpt.word::<T>(name);
-        let implements_interfaces = implements_interfaces
-            .into_iter()
-            .map(|name| cpt.word::<T>(name))
-            .collect();
-        let directives = directives
-            .into_iter()
-            .map(|dir| Directive::compact(dir, cpt))
-            .collect();
-        let fields = fields
-            .into_iter()
-            .map(|field| Field::compact(field, cpt))
-            .collect();
-        let description = description.map(|d| Word::from(d));
-        Self {
-            name,
-            implements_interfaces,
-            directives,
-            fields,
             description,
         }
     }

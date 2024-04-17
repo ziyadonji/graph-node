@@ -1,3 +1,4 @@
+use anyhow::Error;
 /// Validate subgraph schemas by parsing them into `InputSchema` and making
 /// sure that they are valid
 ///
@@ -35,6 +36,7 @@ use graph::data::graphql::DocumentExt;
 use graph::data::subgraph::SPEC_VERSION_1_1_0;
 use graph::prelude::s;
 use graph::prelude::DeploymentHash;
+use graph::schema::ApiSchema;
 use graph::schema::InputSchema;
 use graphql_parser::parse_schema;
 use serde::Deserialize;
@@ -203,6 +205,7 @@ struct Sizes {
     text: usize,
     /// Size of the parsed schema
     gql: usize,
+    compact: usize,
     /// Size of the input schema
     input: usize,
     /// Size of the API schema
@@ -218,6 +221,7 @@ struct Sizer {
 }
 
 impl Sizer {
+    #[inline(never)]
     fn size<T, F: Fn() -> Result<T>>(&self, f: F) -> Result<(usize, T)> {
         f()?;
         ALLOCATED.store(0, SeqCst);
@@ -237,12 +241,23 @@ impl Sizer {
                 .map(|v| v.into_static())
                 .map_err(Into::into)
         })?;
+        let (compact_size, _) = self.size(|| {
+            let schema = parse_schema(raw).map(|v| v.into_static())?;
+            let compact = graph::data::graphql::compact::compact(schema);
+            Ok(compact)
+        })?;
         let (input_size, input_schema) =
             self.size(|| InputSchema::parse_latest(raw, id.clone()).map_err(Into::into))?;
-        let (api_size, api) = self.size(|| input_schema.api_schema().map_err(Into::into))?;
-        let api_text = api.document().to_string().len();
+        let (api_size, (api_text, _api)) = self.size(|| {
+            let api: ApiSchema = input_schema.api_schema().map_err(Error::from)?;
+            let api_text = api.document().to_string().len();
+            // let compact = graph::data::graphql::compact::compact(api.document().clone());
+            Ok((api_text, api))
+        })?;
+
         Ok(Sizes {
             gql: gql_size,
+            compact: compact_size,
             text: txt_size,
             input: input_size,
             api: api_size,
@@ -255,23 +270,24 @@ impl Sizer {
 impl Runner for Sizer {
     fn run(&self, raw: &str, name: &str, _api: bool) {
         if self.first.swap(false, SeqCst) {
-            println!("name,raw,gql,input,api,api_text,time_ns");
+            println!("name,raw,gql,compact,input,api,api_text,time_ns");
         }
         match self.collect_sizes(raw, name) {
             Ok(sizes) => {
                 println!(
-                    "{name},{},{},{},{},{},{}",
+                    "{name},{},{},{},{},{},{},{}",
                     sizes.text,
                     sizes.gql,
+                    sizes.compact,
                     sizes.input,
                     sizes.api,
                     sizes.api_text,
                     sizes.time.as_nanos()
                 );
             }
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                exit(1);
+            Err(_) => {
+                eprintln!("  schema for {name} is invalid");
+                // exit(1);
             }
         }
     }
