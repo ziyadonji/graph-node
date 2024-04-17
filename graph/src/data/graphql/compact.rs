@@ -207,6 +207,7 @@ impl<'a, T: Text<'a>> Compact<ps::Value<'a, T>> for Value {
 pub struct ScalarType {
     pub name: Word,
     pub directives: Vec<Directive>,
+    pub description: Option<Word>,
 }
 
 impl<'a, T: Text<'a>> Compact<ps::ScalarType<'a, T>> for ScalarType {
@@ -215,14 +216,19 @@ impl<'a, T: Text<'a>> Compact<ps::ScalarType<'a, T>> for ScalarType {
             name,
             directives,
             position: _,
-            description: _,
+            description,
         } = scalar;
         let name = cpt.word::<T>(name);
         let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
-        Self { name, directives }
+        let description = description.map(|d| Word::from(d));
+        Self {
+            name,
+            directives,
+            description,
+        }
     }
 }
 
@@ -254,6 +260,7 @@ pub struct ObjectType {
     pub implements_interfaces: Vec<Word>,
     pub directives: Vec<Directive>,
     pub fields: Vec<Field>,
+    pub description: Option<Word>,
 }
 
 impl<'a, T: Text<'a>> Compact<ps::ObjectType<'a, T>> for ObjectType {
@@ -264,7 +271,7 @@ impl<'a, T: Text<'a>> Compact<ps::ObjectType<'a, T>> for ObjectType {
             directives,
             fields,
             position: _,
-            description: _,
+            description,
         } = obj;
         let name = cpt.word::<T>(name);
         let implements_interfaces = implements_interfaces
@@ -279,11 +286,13 @@ impl<'a, T: Text<'a>> Compact<ps::ObjectType<'a, T>> for ObjectType {
             .into_iter()
             .map(|field| Field::compact(field, cpt))
             .collect();
+        let description = description.map(|d| Word::from(d));
         Self {
             name,
             implements_interfaces,
             directives,
             fields,
+            description,
         }
     }
 }
@@ -372,6 +381,7 @@ pub struct Field {
     pub arguments: Vec<InputValue>,
     pub field_type: Type,
     pub directives: Vec<Directive>,
+    pub description: Option<Word>,
 }
 
 impl<'a, T: Text<'a>> Compact<ps::Field<'a, T>> for Field {
@@ -382,7 +392,7 @@ impl<'a, T: Text<'a>> Compact<ps::Field<'a, T>> for Field {
             field_type,
             directives,
             position: _,
-            description: _,
+            description,
         } = field;
 
         let name = cpt.word::<T>(name);
@@ -395,11 +405,13 @@ impl<'a, T: Text<'a>> Compact<ps::Field<'a, T>> for Field {
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
+        let description = description.map(|d| Word::from(d));
         Self {
             name,
             arguments,
             field_type,
             directives,
+            description,
         }
     }
 }
@@ -410,13 +422,14 @@ pub struct InputValue {
     pub value_type: Type,
     pub default_value: Option<Value>,
     pub directives: Vec<Directive>,
+    pub description: Option<Word>,
 }
 
 impl<'a, T: Text<'a>> Compact<ps::InputValue<'a, T>> for InputValue {
     fn compact(val: ps::InputValue<'a, T>, cpt: &mut Compactor) -> Self {
         let ps::InputValue {
             position: _,
-            description: _,
+            description,
             name,
             value_type,
             default_value,
@@ -430,11 +443,13 @@ impl<'a, T: Text<'a>> Compact<ps::InputValue<'a, T>> for InputValue {
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
+        let description = description.map(|d| Word::from(d));
         Self {
             name,
             value_type,
             default_value,
             directives,
+            description,
         }
     }
 }
@@ -445,13 +460,14 @@ pub struct InterfaceType {
     pub implements_interfaces: Vec<Word>,
     pub directives: Vec<Directive>,
     pub fields: Vec<Field>,
+    pub description: Option<Word>,
 }
 
 impl<'a, T: Text<'a>> Compact<ps::InterfaceType<'a, T>> for InterfaceType {
     fn compact(int: ps::InterfaceType<'a, T>, cpt: &mut Compactor) -> Self {
         let ps::InterfaceType {
             position: _,
-            description: _,
+            description,
             name,
             implements_interfaces,
             directives,
@@ -471,11 +487,13 @@ impl<'a, T: Text<'a>> Compact<ps::InterfaceType<'a, T>> for InterfaceType {
             .into_iter()
             .map(|field| Field::compact(field, cpt))
             .collect();
+        let description = description.map(|d| Word::from(d));
         Self {
             name,
             implements_interfaces,
             directives,
             fields,
+            description,
         }
     }
 }
@@ -524,13 +542,14 @@ pub struct UnionType {
     pub name: Word,
     pub directives: Vec<Directive>,
     pub types: Vec<Word>,
+    pub description: Option<Word>,
 }
 
 impl<'a, T: Text<'a>> Compact<ps::UnionType<'a, T>> for UnionType {
     fn compact(union: ps::UnionType<'a, T>, cpt: &mut Compactor) -> Self {
         let ps::UnionType {
             position: _,
-            description: _,
+            description,
             name,
             directives,
             types,
@@ -542,10 +561,12 @@ impl<'a, T: Text<'a>> Compact<ps::UnionType<'a, T>> for UnionType {
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
         let types = types.into_iter().map(|t| cpt.word::<T>(t)).collect();
+        let description = description.map(|d| Word::from(d));
         Self {
             name,
             directives,
             types,
+            description,
         }
     }
 }
@@ -585,13 +606,14 @@ pub struct EnumType {
     pub name: Word,
     pub directives: Vec<Directive>,
     pub values: Vec<EnumValue>,
+    pub description: Option<Word>,
 }
 
 impl<'a, T: Text<'a>> Compact<ps::EnumType<'a, T>> for EnumType {
     fn compact(enum_type: ps::EnumType<'a, T>, cpt: &mut Compactor) -> Self {
         let ps::EnumType {
             position: _,
-            description: _,
+            description,
             name,
             directives,
             values,
@@ -606,10 +628,12 @@ impl<'a, T: Text<'a>> Compact<ps::EnumType<'a, T>> for EnumType {
             .into_iter()
             .map(|val| EnumValue::compact(val, cpt))
             .collect();
+        let description = description.map(|d| Word::from(d));
         Self {
             name,
             directives,
             values,
+            description,
         }
     }
 }
@@ -618,13 +642,14 @@ impl<'a, T: Text<'a>> Compact<ps::EnumType<'a, T>> for EnumType {
 pub struct EnumValue {
     pub name: Word,
     pub directives: Vec<Directive>,
+    pub description: Option<Word>,
 }
 
 impl<'a, T: Text<'a>> Compact<ps::EnumValue<'a, T>> for EnumValue {
     fn compact(val: ps::EnumValue<'a, T>, cpt: &mut Compactor) -> Self {
         let ps::EnumValue {
             position: _,
-            description: _,
+            description,
             name,
             directives,
         } = val;
@@ -634,7 +659,12 @@ impl<'a, T: Text<'a>> Compact<ps::EnumValue<'a, T>> for EnumValue {
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
-        Self { name, directives }
+        let description = description.map(|d| Word::from(d));
+        Self {
+            name,
+            directives,
+            description,
+        }
     }
 }
 
@@ -676,13 +706,14 @@ pub struct InputObjectType {
     pub name: Word,
     pub directives: Vec<Directive>,
     pub fields: Vec<InputValue>,
+    pub description: Option<Word>,
 }
 
 impl<'a, T: Text<'a>> Compact<ps::InputObjectType<'a, T>> for InputObjectType {
     fn compact(obj: ps::InputObjectType<'a, T>, cpt: &mut Compactor) -> Self {
         let ps::InputObjectType {
             position: _,
-            description: _,
+            description,
             name,
             directives,
             fields,
@@ -697,10 +728,12 @@ impl<'a, T: Text<'a>> Compact<ps::InputObjectType<'a, T>> for InputObjectType {
             .into_iter()
             .map(|field| InputValue::compact(field, cpt))
             .collect();
+        let description = description.map(|d| Word::from(d));
         Self {
             name,
             directives,
             fields,
+            description,
         }
     }
 }
@@ -795,13 +828,14 @@ pub struct DirectiveDefinition {
     pub arguments: Vec<InputValue>,
     pub repeatable: bool,
     pub locations: Vec<DirectiveLocation>,
+    pub description: Option<Word>,
 }
 
 impl<'a, T: Text<'a>> Compact<ps::DirectiveDefinition<'a, T>> for DirectiveDefinition {
     fn compact(def: ps::DirectiveDefinition<'a, T>, cpt: &mut Compactor) -> Self {
         let ps::DirectiveDefinition {
             position: _,
-            description: _,
+            description,
             name,
             arguments,
             repeatable,
@@ -814,11 +848,13 @@ impl<'a, T: Text<'a>> Compact<ps::DirectiveDefinition<'a, T>> for DirectiveDefin
             .map(|arg| InputValue::compact(arg, cpt))
             .collect();
         let locations = locations.into_iter().map(DirectiveLocation::from).collect();
+        let description = description.map(|d| Word::from(d));
         Self {
             name,
             arguments,
             repeatable,
             locations,
+            description,
         }
     }
 }
