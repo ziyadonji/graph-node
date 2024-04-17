@@ -5,7 +5,7 @@ use std::{collections::BTreeMap, str::FromStr};
 use graphql_parser::schema::{self as ps, Text};
 use thiserror::Error;
 
-use crate::{data::value::Word, prelude::s};
+use crate::data::value::Word;
 
 struct Compactor;
 
@@ -19,6 +19,11 @@ trait Compact<T>: Sized {
     fn compact(value: T, cpt: &mut Compactor) -> Self;
 }
 
+pub fn compact<'a, T: Text<'a>>(doc: ps::Document<'a, T>) -> Document {
+    let mut cpt = Compactor;
+    Document::compact(doc, &mut cpt)
+}
+
 fn word<'a, T: Text<'a>>(t: T::Value) -> Word {
     Word::from(t.as_ref())
 }
@@ -28,15 +33,8 @@ pub struct Document {
     pub definitions: Vec<Definition>,
 }
 
-impl From<s::Document> for Document {
-    fn from(doc: s::Document) -> Self {
-        let definitions = doc.definitions.into_iter().map(Definition::from).collect();
-        Self { definitions }
-    }
-}
-
-impl Compact<s::Document> for Document {
-    fn compact(doc: s::Document, cpt: &mut Compactor) -> Self {
+impl<'a, T: Text<'a>> Compact<ps::Document<'a, T>> for Document {
+    fn compact(doc: ps::Document<'a, T>, cpt: &mut Compactor) -> Self {
         let definitions = doc
             .definitions
             .into_iter()
@@ -54,38 +52,19 @@ pub enum Definition {
     DirectiveDefinition(DirectiveDefinition),
 }
 
-impl From<s::Definition> for Definition {
-    fn from(def: s::Definition) -> Self {
+impl<'a, T: Text<'a>> Compact<ps::Definition<'a, T>> for Definition {
+    fn compact(def: ps::Definition<'a, T>, cpt: &mut Compactor) -> Self {
         match def {
-            s::Definition::SchemaDefinition(def) => {
-                Definition::SchemaDefinition(SchemaDefinition::from(def))
-            }
-            s::Definition::TypeDefinition(def) => {
-                Definition::TypeDefinition(TypeDefinition::from(def))
-            }
-            s::Definition::TypeExtension(def) => {
-                Definition::TypeExtension(TypeExtension::from(def))
-            }
-            s::Definition::DirectiveDefinition(def) => {
-                Definition::DirectiveDefinition(DirectiveDefinition::from(def))
-            }
-        }
-    }
-}
-
-impl Compact<s::Definition> for Definition {
-    fn compact(def: s::Definition, cpt: &mut Compactor) -> Self {
-        match def {
-            s::Definition::SchemaDefinition(def) => {
+            ps::Definition::SchemaDefinition(def) => {
                 Definition::SchemaDefinition(SchemaDefinition::compact(def, cpt))
             }
-            s::Definition::TypeDefinition(def) => {
+            ps::Definition::TypeDefinition(def) => {
                 Definition::TypeDefinition(TypeDefinition::compact(def, cpt))
             }
-            s::Definition::TypeExtension(def) => {
+            ps::Definition::TypeExtension(def) => {
                 Definition::TypeExtension(TypeExtension::compact(def, cpt))
             }
-            s::Definition::DirectiveDefinition(def) => {
+            ps::Definition::DirectiveDefinition(def) => {
                 Definition::DirectiveDefinition(DirectiveDefinition::compact(def, cpt))
             }
         }
@@ -100,31 +79,22 @@ pub struct SchemaDefinition {
     pub subscription: Option<Word>,
 }
 
-impl<'a, T: Text<'a>> From<s::SchemaDefinition<'a, T>> for SchemaDefinition {
-    fn from(def: s::SchemaDefinition<'a, T>) -> Self {
-        let directives = def.directives.into_iter().map(Directive::from).collect();
-        let query = def.query.map(word::<'a, T>);
-        let mutation = def.mutation.map(word::<'a, T>);
-        let subscription = def.subscription.map(word::<'a, T>);
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::SchemaDefinition<'a, T>> for SchemaDefinition {
+    fn compact(def: ps::SchemaDefinition<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::SchemaDefinition {
+            position: _,
             directives,
             query,
             mutation,
             subscription,
-        }
-    }
-}
-
-impl<'a, T: Text<'a>> Compact<s::SchemaDefinition<'a, T>> for SchemaDefinition {
-    fn compact(def: s::SchemaDefinition<'a, T>, cpt: &mut Compactor) -> Self {
-        let directives = def
-            .directives
+        } = def;
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
-        let query = def.query.map(|q| cpt.word::<T>(q));
-        let mutation = def.mutation.map(|m| cpt.word::<T>(m));
-        let subscription = def.subscription.map(|s| cpt.word::<T>(s));
+        let query = query.map(|q| cpt.word::<T>(q));
+        let mutation = mutation.map(|m| cpt.word::<T>(m));
+        let subscription = subscription.map(|s| cpt.word::<T>(s));
         Self {
             directives,
             query,
@@ -144,34 +114,21 @@ pub enum TypeDefinition {
     InputObject(InputObjectType),
 }
 
-impl From<s::TypeDefinition> for TypeDefinition {
-    fn from(def: s::TypeDefinition) -> Self {
+impl<'a, T: Text<'a>> Compact<ps::TypeDefinition<'a, T>> for TypeDefinition {
+    fn compact(def: ps::TypeDefinition<'a, T>, cpt: &mut Compactor) -> Self {
         match def {
-            s::TypeDefinition::Scalar(def) => TypeDefinition::Scalar(ScalarType::from(def)),
-            s::TypeDefinition::Object(def) => TypeDefinition::Object(ObjectType::from(def)),
-            s::TypeDefinition::Interface(def) => {
-                TypeDefinition::Interface(InterfaceType::from(def))
+            ps::TypeDefinition::Scalar(def) => {
+                TypeDefinition::Scalar(ScalarType::compact(def, cpt))
             }
-            s::TypeDefinition::Union(def) => TypeDefinition::Union(UnionType::from(def)),
-            s::TypeDefinition::Enum(def) => TypeDefinition::Enum(EnumType::from(def)),
-            s::TypeDefinition::InputObject(def) => {
-                TypeDefinition::InputObject(InputObjectType::from(def))
+            ps::TypeDefinition::Object(def) => {
+                TypeDefinition::Object(ObjectType::compact(def, cpt))
             }
-        }
-    }
-}
-
-impl Compact<s::TypeDefinition> for TypeDefinition {
-    fn compact(def: s::TypeDefinition, cpt: &mut Compactor) -> Self {
-        match def {
-            s::TypeDefinition::Scalar(def) => TypeDefinition::Scalar(ScalarType::compact(def, cpt)),
-            s::TypeDefinition::Object(def) => TypeDefinition::Object(ObjectType::compact(def, cpt)),
-            s::TypeDefinition::Interface(def) => {
+            ps::TypeDefinition::Interface(def) => {
                 TypeDefinition::Interface(InterfaceType::compact(def, cpt))
             }
-            s::TypeDefinition::Union(def) => TypeDefinition::Union(UnionType::compact(def, cpt)),
-            s::TypeDefinition::Enum(def) => TypeDefinition::Enum(EnumType::compact(def, cpt)),
-            s::TypeDefinition::InputObject(def) => {
+            ps::TypeDefinition::Union(def) => TypeDefinition::Union(UnionType::compact(def, cpt)),
+            ps::TypeDefinition::Enum(def) => TypeDefinition::Enum(EnumType::compact(def, cpt)),
+            ps::TypeDefinition::InputObject(def) => {
                 TypeDefinition::InputObject(InputObjectType::compact(def, cpt))
             }
         }
@@ -188,42 +145,18 @@ pub enum TypeExtension {
     InputObject(InputObjectTypeExtension),
 }
 
-impl<'a, T: Text<'a>> From<s::TypeExtension<'a, T>> for TypeExtension {
-    fn from(ext: s::TypeExtension<'a, T>) -> Self {
+impl<'a, T: Text<'a>> Compact<ps::TypeExtension<'a, T>> for TypeExtension {
+    fn compact(ext: ps::TypeExtension<'a, T>, cpt: &mut Compactor) -> Self {
+        use ps::TypeExtension as Ps;
         match ext {
-            s::TypeExtension::Scalar(ext) => TypeExtension::Scalar(ScalarTypeExtension::from(ext)),
-            s::TypeExtension::Object(ext) => TypeExtension::Object(ObjectTypeExtension::from(ext)),
-            s::TypeExtension::Interface(ext) => {
-                TypeExtension::Interface(InterfaceTypeExtension::from(ext))
-            }
-            s::TypeExtension::Union(ext) => TypeExtension::Union(UnionTypeExtension::from(ext)),
-            s::TypeExtension::Enum(ext) => TypeExtension::Enum(EnumTypeExtension::from(ext)),
-            s::TypeExtension::InputObject(ext) => {
-                TypeExtension::InputObject(InputObjectTypeExtension::from(ext))
-            }
-        }
-    }
-}
-
-impl<'a, T: Text<'a>> Compact<s::TypeExtension<'a, T>> for TypeExtension {
-    fn compact(ext: s::TypeExtension<'a, T>, cpt: &mut Compactor) -> Self {
-        match ext {
-            s::TypeExtension::Scalar(ext) => {
-                TypeExtension::Scalar(ScalarTypeExtension::compact(ext, cpt))
-            }
-            s::TypeExtension::Object(ext) => {
-                TypeExtension::Object(ObjectTypeExtension::compact(ext, cpt))
-            }
-            s::TypeExtension::Interface(ext) => {
+            Ps::Scalar(ext) => TypeExtension::Scalar(ScalarTypeExtension::compact(ext, cpt)),
+            Ps::Object(ext) => TypeExtension::Object(ObjectTypeExtension::compact(ext, cpt)),
+            Ps::Interface(ext) => {
                 TypeExtension::Interface(InterfaceTypeExtension::compact(ext, cpt))
             }
-            s::TypeExtension::Union(ext) => {
-                TypeExtension::Union(UnionTypeExtension::compact(ext, cpt))
-            }
-            s::TypeExtension::Enum(ext) => {
-                TypeExtension::Enum(EnumTypeExtension::compact(ext, cpt))
-            }
-            s::TypeExtension::InputObject(ext) => {
+            Ps::Union(ext) => TypeExtension::Union(UnionTypeExtension::compact(ext, cpt)),
+            Ps::Enum(ext) => TypeExtension::Enum(EnumTypeExtension::compact(ext, cpt)),
+            Ps::InputObject(ext) => {
                 TypeExtension::InputObject(InputObjectTypeExtension::compact(ext, cpt))
             }
         }
@@ -238,7 +171,7 @@ pub struct Number(pub(crate) i64);
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Variable(Word),
-    Int(Number),
+    Int(i64),
     Float(f64),
     String(String),
     Boolean(bool),
@@ -248,22 +181,22 @@ pub enum Value {
     Object(BTreeMap<Word, Value>),
 }
 
-impl<'a, T: Text<'a>> From<ps::Value<'a, T>> for Value {
-    fn from(val: ps::Value<'a, T>) -> Self {
-        use ps::Value::*;
-
-        match val {
-            Variable(name) => Value::Variable(word::<T>(name)),
-            Int(num) => Value::Int(Number(num.as_i64().unwrap())),
-            Float(num) => Value::Float(num),
-            String(s) => Value::String(s.to_string()),
-            Boolean(b) => Value::Boolean(b),
-            Null => Value::Null,
-            Enum(name) => Value::Enum(word::<T>(name)),
-            List(list) => Value::List(list.into_iter().map(Value::from).collect()),
-            Object(obj) => Value::Object(
-                obj.into_iter()
-                    .map(|(k, v)| (word::<T>(k), Value::from(v)))
+impl<'a, T: Text<'a>> Compact<ps::Value<'a, T>> for Value {
+    fn compact(value: ps::Value<'a, T>, cpt: &mut Compactor) -> Self {
+        match value {
+            ps::Value::Variable(name) => Value::Variable(cpt.word::<T>(name)),
+            ps::Value::Int(n) => Value::Int(n.as_i64().unwrap()),
+            ps::Value::Float(f) => Value::Float(f),
+            ps::Value::String(s) => Value::String(s.to_string()),
+            ps::Value::Boolean(b) => Value::Boolean(b),
+            ps::Value::Null => Value::Null,
+            ps::Value::Enum(e) => Value::Enum(cpt.word::<T>(e)),
+            ps::Value::List(l) => {
+                Value::List(l.into_iter().map(|v| Value::compact(v, cpt)).collect())
+            }
+            ps::Value::Object(o) => Value::Object(
+                o.into_iter()
+                    .map(|(k, v)| (cpt.word::<T>(k), Value::compact(v, cpt)))
                     .collect(),
             ),
         }
@@ -276,28 +209,16 @@ pub struct ScalarType {
     pub directives: Vec<Directive>,
 }
 
-impl ScalarType {
-    pub fn new(name: Word) -> Self {
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::ScalarType<'a, T>> for ScalarType {
+    fn compact(scalar: ps::ScalarType<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::ScalarType {
             name,
-            directives: vec![],
-        }
-    }
-}
-
-impl From<s::ScalarType> for ScalarType {
-    fn from(scalar: s::ScalarType) -> Self {
-        let name = word::<'static, String>(scalar.name);
-        let directives = scalar.directives.into_iter().map(Directive::from).collect();
-        Self { name, directives }
-    }
-}
-
-impl Compact<s::ScalarType> for ScalarType {
-    fn compact(scalar: s::ScalarType, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<String>(scalar.name);
-        let directives = scalar
-            .directives
+            directives,
+            position: _,
+            description: _,
+        } = scalar;
+        let name = cpt.word::<T>(name);
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
@@ -311,28 +232,15 @@ pub struct ScalarTypeExtension {
     pub directives: Vec<Directive>,
 }
 
-impl ScalarTypeExtension {
-    pub fn new(name: Word) -> Self {
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::ScalarTypeExtension<'a, T>> for ScalarTypeExtension {
+    fn compact(ext: ps::ScalarTypeExtension<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::ScalarTypeExtension {
             name,
-            directives: vec![],
-        }
-    }
-}
-
-impl<'a, T: Text<'a>> From<s::ScalarTypeExtension<'a, T>> for ScalarTypeExtension {
-    fn from(ext: s::ScalarTypeExtension<'a, T>) -> Self {
-        let name = word::<T>(ext.name);
-        let directives = ext.directives.into_iter().map(Directive::from).collect();
-        Self { name, directives }
-    }
-}
-
-impl<'a, T: Text<'a>> Compact<s::ScalarTypeExtension<'a, T>> for ScalarTypeExtension {
-    fn compact(ext: s::ScalarTypeExtension<'a, T>, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<T>(ext.name);
-        let directives = ext
-            .directives
+            directives,
+            position: _,
+        } = ext;
+        let name = cpt.word::<T>(name);
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
@@ -348,51 +256,26 @@ pub struct ObjectType {
     pub fields: Vec<Field>,
 }
 
-impl ObjectType {
-    pub fn new(name: Word) -> Self {
-        Self {
-            name,
-            implements_interfaces: vec![],
-            directives: vec![],
-            fields: vec![],
-        }
-    }
-}
-
-impl From<s::ObjectType> for ObjectType {
-    fn from(obj: s::ObjectType) -> Self {
-        let name = word::<String>(obj.name);
-        let implements_interfaces = obj
-            .implements_interfaces
-            .into_iter()
-            .map(word::<String>)
-            .collect();
-        let directives = obj.directives.into_iter().map(Directive::from).collect();
-        let fields = obj.fields.into_iter().map(Field::from).collect();
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::ObjectType<'a, T>> for ObjectType {
+    fn compact(obj: ps::ObjectType<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::ObjectType {
             name,
             implements_interfaces,
             directives,
             fields,
-        }
-    }
-}
-
-impl Compact<s::ObjectType> for ObjectType {
-    fn compact(obj: s::ObjectType, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<String>(obj.name);
-        let implements_interfaces = obj
-            .implements_interfaces
+            position: _,
+            description: _,
+        } = obj;
+        let name = cpt.word::<T>(name);
+        let implements_interfaces = implements_interfaces
             .into_iter()
-            .map(|name| cpt.word::<String>(name))
+            .map(|name| cpt.word::<T>(name))
             .collect();
-        let directives = obj
-            .directives
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
-        let fields = obj
-            .fields
+        let fields = fields
             .into_iter()
             .map(|field| Field::compact(field, cpt))
             .collect();
@@ -413,51 +296,25 @@ pub struct ObjectTypeExtension {
     pub fields: Vec<Field>,
 }
 
-impl ObjectTypeExtension {
-    pub fn new(name: Word) -> Self {
-        Self {
-            name,
-            implements_interfaces: vec![],
-            directives: vec![],
-            fields: vec![],
-        }
-    }
-}
-
-impl<'a, T: Text<'a>> From<s::ObjectTypeExtension<'a, T>> for ObjectTypeExtension {
-    fn from(ext: s::ObjectTypeExtension<'a, T>) -> Self {
-        let name = word::<T>(ext.name);
-        let implements_interfaces = ext
-            .implements_interfaces
-            .into_iter()
-            .map(word::<T>)
-            .collect();
-        let directives = ext.directives.into_iter().map(Directive::from).collect();
-        let fields = ext.fields.into_iter().map(Field::from).collect();
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::ObjectTypeExtension<'a, T>> for ObjectTypeExtension {
+    fn compact(ext: ps::ObjectTypeExtension<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::ObjectTypeExtension {
             name,
             implements_interfaces,
             directives,
             fields,
-        }
-    }
-}
-
-impl<'a, T: Text<'a>> Compact<s::ObjectTypeExtension<'a, T>> for ObjectTypeExtension {
-    fn compact(ext: s::ObjectTypeExtension<'a, T>, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<T>(ext.name);
-        let implements_interfaces = ext
-            .implements_interfaces
+            position: _,
+        } = ext;
+        let name = cpt.word::<T>(name);
+        let implements_interfaces = implements_interfaces
             .into_iter()
             .map(|name| cpt.word::<T>(name))
             .collect();
-        let directives = ext
-            .directives
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
-        let fields = ext
-            .fields
+        let fields = fields
             .into_iter()
             .map(|field| Field::compact(field, cpt))
             .collect();
@@ -476,25 +333,17 @@ pub struct Directive {
     pub arguments: Vec<(Word, Value)>,
 }
 
-impl<'a, T: Text<'a>> From<ps::Directive<'a, T>> for Directive {
-    fn from(dir: ps::Directive<'a, T>) -> Self {
-        let name = word::<T>(dir.name);
-        let arguments = dir
-            .arguments
-            .into_iter()
-            .map(|(k, v)| (word::<T>(k), Value::from(v)))
-            .collect();
-        Self { name, arguments }
-    }
-}
-
 impl<'a, T: Text<'a>> Compact<ps::Directive<'a, T>> for Directive {
     fn compact(dir: ps::Directive<'a, T>, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<T>(dir.name);
-        let arguments = dir
-            .arguments
+        let ps::Directive {
+            name,
+            arguments,
+            position: _,
+        } = dir;
+        let name = cpt.word::<T>(name);
+        let arguments = arguments
             .into_iter()
-            .map(|(k, v)| (cpt.word::<T>(k), Value::from(v)))
+            .map(|(k, v)| (cpt.word::<T>(k), Value::compact(v, cpt)))
             .collect();
         Self { name, arguments }
     }
@@ -507,12 +356,12 @@ pub enum Type {
     NonNullType(Box<Type>),
 }
 
-impl<'a, T: Text<'a>> From<ps::Type<'a, T>> for Type {
-    fn from(ty: ps::Type<'a, T>) -> Self {
+impl<'a, T: Text<'a>> Compact<ps::Type<'a, T>> for Type {
+    fn compact(ty: ps::Type<'a, T>, cpt: &mut Compactor) -> Self {
         match ty {
-            ps::Type::NamedType(name) => Type::NamedType(word::<T>(name)),
-            ps::Type::ListType(ty) => Type::ListType(Box::new(Type::from(*ty))),
-            ps::Type::NonNullType(ty) => Type::NonNullType(Box::new(Type::from(*ty))),
+            ps::Type::NamedType(name) => Type::NamedType(cpt.word::<T>(name)),
+            ps::Type::ListType(ty) => Type::ListType(Box::new(Type::compact(*ty, cpt))),
+            ps::Type::NonNullType(ty) => Type::NonNullType(Box::new(Type::compact(*ty, cpt))),
         }
     }
 }
@@ -525,32 +374,24 @@ pub struct Field {
     pub directives: Vec<Directive>,
 }
 
-impl<'a, T: Text<'a>> From<ps::Field<'a, T>> for Field {
-    fn from(field: ps::Field<'a, T>) -> Self {
-        let name = word::<T>(field.name);
-        let arguments = field.arguments.into_iter().map(InputValue::from).collect();
-        let field_type = Type::from(field.field_type);
-        let directives = field.directives.into_iter().map(Directive::from).collect();
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::Field<'a, T>> for Field {
+    fn compact(field: ps::Field<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::Field {
             name,
             arguments,
             field_type,
             directives,
-        }
-    }
-}
+            position: _,
+            description: _,
+        } = field;
 
-impl<'a, T: Text<'a>> Compact<ps::Field<'a, T>> for Field {
-    fn compact(field: ps::Field<'a, T>, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<T>(field.name);
-        let arguments = field
-            .arguments
+        let name = cpt.word::<T>(name);
+        let arguments = arguments
             .into_iter()
             .map(|arg| InputValue::compact(arg, cpt))
             .collect();
-        let field_type = Type::from(field.field_type);
-        let directives = field
-            .directives
+        let field_type = Type::compact(field_type, cpt);
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
@@ -571,28 +412,21 @@ pub struct InputValue {
     pub directives: Vec<Directive>,
 }
 
-impl<'a, T: Text<'a>> From<ps::InputValue<'a, T>> for InputValue {
-    fn from(val: ps::InputValue<'a, T>) -> Self {
-        let name = word::<T>(val.name);
-        let value_type = Type::from(val.value_type);
-        let default_value = val.default_value.map(Value::from);
-        let directives = val.directives.into_iter().map(Directive::from).collect();
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::InputValue<'a, T>> for InputValue {
+    fn compact(val: ps::InputValue<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::InputValue {
+            position: _,
+            description: _,
             name,
             value_type,
             default_value,
             directives,
-        }
-    }
-}
+        } = val;
 
-impl<'a, T: Text<'a>> Compact<ps::InputValue<'a, T>> for InputValue {
-    fn compact(val: ps::InputValue<'a, T>, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<T>(val.name);
-        let value_type = Type::from(val.value_type);
-        let default_value = val.default_value.map(Value::from);
-        let directives = val
-            .directives
+        let name = cpt.word::<T>(name);
+        let value_type = Type::compact(value_type, cpt);
+        let default_value = default_value.map(|v| Value::compact(v, cpt));
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
@@ -613,51 +447,27 @@ pub struct InterfaceType {
     pub fields: Vec<Field>,
 }
 
-impl InterfaceType {
-    pub fn new(name: Word) -> Self {
-        Self {
-            name,
-            implements_interfaces: vec![],
-            directives: vec![],
-            fields: vec![],
-        }
-    }
-}
-
-impl From<s::InterfaceType> for InterfaceType {
-    fn from(int: s::InterfaceType) -> Self {
-        let name = word::<String>(int.name);
-        let implements_interfaces = int
-            .implements_interfaces
-            .into_iter()
-            .map(word::<String>)
-            .collect();
-        let directives = int.directives.into_iter().map(Directive::from).collect();
-        let fields = int.fields.into_iter().map(Field::from).collect();
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::InterfaceType<'a, T>> for InterfaceType {
+    fn compact(int: ps::InterfaceType<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::InterfaceType {
+            position: _,
+            description: _,
             name,
             implements_interfaces,
             directives,
             fields,
-        }
-    }
-}
+        } = int;
 
-impl Compact<s::InterfaceType> for InterfaceType {
-    fn compact(int: s::InterfaceType, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<String>(int.name);
-        let implements_interfaces = int
-            .implements_interfaces
+        let name = cpt.word::<T>(name);
+        let implements_interfaces = implements_interfaces
             .into_iter()
-            .map(|name| cpt.word::<String>(name))
+            .map(|name| cpt.word::<T>(name))
             .collect();
-        let directives = int
-            .directives
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
-        let fields = int
-            .fields
+        let fields = fields
             .into_iter()
             .map(|field| Field::compact(field, cpt))
             .collect();
@@ -678,51 +488,26 @@ pub struct InterfaceTypeExtension {
     pub fields: Vec<Field>,
 }
 
-impl InterfaceTypeExtension {
-    pub fn new(name: Word) -> Self {
-        Self {
-            name,
-            implements_interfaces: vec![],
-            directives: vec![],
-            fields: vec![],
-        }
-    }
-}
-
-impl<'a, T: Text<'a>> From<s::InterfaceTypeExtension<'a, T>> for InterfaceTypeExtension {
-    fn from(ext: s::InterfaceTypeExtension<'a, T>) -> Self {
-        let name = word::<T>(ext.name);
-        let implements_interfaces = ext
-            .implements_interfaces
-            .into_iter()
-            .map(word::<T>)
-            .collect();
-        let directives = ext.directives.into_iter().map(Directive::from).collect();
-        let fields = ext.fields.into_iter().map(Field::from).collect();
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::InterfaceTypeExtension<'a, T>> for InterfaceTypeExtension {
+    fn compact(ext: ps::InterfaceTypeExtension<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::InterfaceTypeExtension {
+            position: _,
             name,
             implements_interfaces,
             directives,
             fields,
-        }
-    }
-}
+        } = ext;
 
-impl<'a, T: Text<'a>> Compact<s::InterfaceTypeExtension<'a, T>> for InterfaceTypeExtension {
-    fn compact(ext: s::InterfaceTypeExtension<'a, T>, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<T>(ext.name);
-        let implements_interfaces = ext
-            .implements_interfaces
+        let name = cpt.word::<T>(name);
+        let implements_interfaces = implements_interfaces
             .into_iter()
             .map(|name| cpt.word::<T>(name))
             .collect();
-        let directives = ext
-            .directives
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
-        let fields = ext
-            .fields
+        let fields = fields
             .into_iter()
             .map(|field| Field::compact(field, cpt))
             .collect();
@@ -741,42 +526,22 @@ pub struct UnionType {
     pub types: Vec<Word>,
 }
 
-impl UnionType {
-    pub fn new(name: Word) -> Self {
-        Self {
-            name,
-            directives: vec![],
-            types: vec![],
-        }
-    }
-}
-
-impl From<s::UnionType> for UnionType {
-    fn from(union: s::UnionType) -> Self {
-        let name = word::<String>(union.name);
-        let directives = union.directives.into_iter().map(Directive::from).collect();
-        let types = union.types.into_iter().map(word::<String>).collect();
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::UnionType<'a, T>> for UnionType {
+    fn compact(union: ps::UnionType<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::UnionType {
+            position: _,
+            description: _,
             name,
             directives,
             types,
-        }
-    }
-}
+        } = union;
 
-impl Compact<s::UnionType> for UnionType {
-    fn compact(union: s::UnionType, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<String>(union.name);
-        let directives = union
-            .directives
+        let name = cpt.word::<T>(name);
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
-        let types = union
-            .types
-            .into_iter()
-            .map(|t| cpt.word::<String>(t))
-            .collect();
+        let types = types.into_iter().map(|t| cpt.word::<T>(t)).collect();
         Self {
             name,
             directives,
@@ -792,38 +557,21 @@ pub struct UnionTypeExtension {
     pub types: Vec<Word>,
 }
 
-impl UnionTypeExtension {
-    pub fn new(name: Word) -> Self {
-        Self {
-            name,
-            directives: vec![],
-            types: vec![],
-        }
-    }
-}
-
-impl<'a, T: Text<'a>> From<s::UnionTypeExtension<'a, T>> for UnionTypeExtension {
-    fn from(ext: s::UnionTypeExtension<'a, T>) -> Self {
-        let name = word::<T>(ext.name);
-        let directives = ext.directives.into_iter().map(Directive::from).collect();
-        let types = ext.types.into_iter().map(word::<T>).collect();
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::UnionTypeExtension<'a, T>> for UnionTypeExtension {
+    fn compact(ext: ps::UnionTypeExtension<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::UnionTypeExtension {
+            position: _,
             name,
             directives,
             types,
-        }
-    }
-}
+        } = ext;
 
-impl<'a, T: Text<'a>> Compact<s::UnionTypeExtension<'a, T>> for UnionTypeExtension {
-    fn compact(ext: s::UnionTypeExtension<'a, T>, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<T>(ext.name);
-        let directives = ext
-            .directives
+        let name = cpt.word::<T>(name);
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
-        let types = ext.types.into_iter().map(|t| cpt.word::<T>(t)).collect();
+        let types = types.into_iter().map(|t| cpt.word::<T>(t)).collect();
         Self {
             name,
             directives,
@@ -839,43 +587,22 @@ pub struct EnumType {
     pub values: Vec<EnumValue>,
 }
 
-impl EnumType {
-    pub fn new(name: Word) -> Self {
-        Self {
-            name,
-            directives: vec![],
-            values: vec![],
-        }
-    }
-}
-
-impl From<s::EnumType> for EnumType {
-    fn from(enum_type: s::EnumType) -> Self {
-        let name = word::<String>(enum_type.name);
-        let directives = enum_type
-            .directives
-            .into_iter()
-            .map(Directive::from)
-            .collect();
-        let values = enum_type.values.into_iter().map(EnumValue::from).collect();
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::EnumType<'a, T>> for EnumType {
+    fn compact(enum_type: ps::EnumType<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::EnumType {
+            position: _,
+            description: _,
             name,
             directives,
             values,
-        }
-    }
-}
+        } = enum_type;
 
-impl Compact<s::EnumType> for EnumType {
-    fn compact(enum_type: s::EnumType, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<String>(enum_type.name);
-        let directives = enum_type
-            .directives
+        let name = cpt.word::<T>(name);
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
-        let values = enum_type
-            .values
+        let values = values
             .into_iter()
             .map(|val| EnumValue::compact(val, cpt))
             .collect();
@@ -893,28 +620,17 @@ pub struct EnumValue {
     pub directives: Vec<Directive>,
 }
 
-impl EnumValue {
-    pub fn new(name: Word) -> Self {
-        Self {
-            name,
-            directives: vec![],
-        }
-    }
-}
-
-impl<'a, T: Text<'a>> From<ps::EnumValue<'a, T>> for EnumValue {
-    fn from(val: ps::EnumValue<'a, T>) -> Self {
-        let name = word::<T>(val.name);
-        let directives = val.directives.into_iter().map(Directive::from).collect();
-        Self { name, directives }
-    }
-}
-
 impl<'a, T: Text<'a>> Compact<ps::EnumValue<'a, T>> for EnumValue {
     fn compact(val: ps::EnumValue<'a, T>, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<T>(val.name);
-        let directives = val
-            .directives
+        let ps::EnumValue {
+            position: _,
+            description: _,
+            name,
+            directives,
+        } = val;
+
+        let name = cpt.word::<T>(name);
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
@@ -929,39 +645,21 @@ pub struct EnumTypeExtension {
     pub values: Vec<EnumValue>,
 }
 
-impl EnumTypeExtension {
-    pub fn new(name: Word) -> Self {
-        Self {
-            name,
-            directives: vec![],
-            values: vec![],
-        }
-    }
-}
-
-impl<'a, T: Text<'a>> From<s::EnumTypeExtension<'a, T>> for EnumTypeExtension {
-    fn from(ext: s::EnumTypeExtension<'a, T>) -> Self {
-        let name = word::<T>(ext.name);
-        let directives = ext.directives.into_iter().map(Directive::from).collect();
-        let values = ext.values.into_iter().map(EnumValue::from).collect();
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::EnumTypeExtension<'a, T>> for EnumTypeExtension {
+    fn compact(ext: ps::EnumTypeExtension<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::EnumTypeExtension {
+            position: _,
             name,
             directives,
             values,
-        }
-    }
-}
+        } = ext;
 
-impl<'a, T: Text<'a>> Compact<s::EnumTypeExtension<'a, T>> for EnumTypeExtension {
-    fn compact(ext: s::EnumTypeExtension<'a, T>, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<T>(ext.name);
-        let directives = ext
-            .directives
+        let name = cpt.word::<T>(name);
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
-        let values = ext
-            .values
+        let values = values
             .into_iter()
             .map(|val| EnumValue::compact(val, cpt))
             .collect();
@@ -972,6 +670,7 @@ impl<'a, T: Text<'a>> Compact<s::EnumTypeExtension<'a, T>> for EnumTypeExtension
         }
     }
 }
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct InputObjectType {
     pub name: Word,
@@ -979,39 +678,22 @@ pub struct InputObjectType {
     pub fields: Vec<InputValue>,
 }
 
-impl InputObjectType {
-    pub fn new(name: Word) -> Self {
-        Self {
-            name,
-            directives: vec![],
-            fields: vec![],
-        }
-    }
-}
-
-impl From<s::InputObjectType> for InputObjectType {
-    fn from(obj: s::InputObjectType) -> Self {
-        let name = word::<String>(obj.name);
-        let directives = obj.directives.into_iter().map(Directive::from).collect();
-        let fields = obj.fields.into_iter().map(InputValue::from).collect();
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::InputObjectType<'a, T>> for InputObjectType {
+    fn compact(obj: ps::InputObjectType<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::InputObjectType {
+            position: _,
+            description: _,
             name,
             directives,
             fields,
-        }
-    }
-}
+        } = obj;
 
-impl Compact<s::InputObjectType> for InputObjectType {
-    fn compact(obj: s::InputObjectType, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<String>(obj.name);
-        let directives = obj
-            .directives
+        let name = cpt.word::<T>(name);
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
-        let fields = obj
-            .fields
+        let fields = fields
             .into_iter()
             .map(|field| InputValue::compact(field, cpt))
             .collect();
@@ -1030,39 +712,21 @@ pub struct InputObjectTypeExtension {
     pub fields: Vec<InputValue>,
 }
 
-impl InputObjectTypeExtension {
-    pub fn new(name: Word) -> Self {
-        Self {
-            name,
-            directives: vec![],
-            fields: vec![],
-        }
-    }
-}
-
-impl<'a, T: Text<'a>> From<s::InputObjectTypeExtension<'a, T>> for InputObjectTypeExtension {
-    fn from(ext: s::InputObjectTypeExtension<'a, T>) -> Self {
-        let name = word::<T>(ext.name);
-        let directives = ext.directives.into_iter().map(Directive::from).collect();
-        let fields = ext.fields.into_iter().map(InputValue::from).collect();
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::InputObjectTypeExtension<'a, T>> for InputObjectTypeExtension {
+    fn compact(ext: ps::InputObjectTypeExtension<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::InputObjectTypeExtension {
+            position: _,
             name,
             directives,
             fields,
-        }
-    }
-}
+        } = ext;
 
-impl<'a, T: Text<'a>> Compact<s::InputObjectTypeExtension<'a, T>> for InputObjectTypeExtension {
-    fn compact(ext: s::InputObjectTypeExtension<'a, T>, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<T>(ext.name);
-        let directives = ext
-            .directives
+        let name = cpt.word::<T>(name);
+        let directives = directives
             .into_iter()
             .map(|dir| Directive::compact(dir, cpt))
             .collect();
-        let fields = ext
-            .fields
+        let fields = fields
             .into_iter()
             .map(|field| InputValue::compact(field, cpt))
             .collect();
@@ -1099,9 +763,9 @@ pub enum DirectiveLocation {
     InputFieldDefinition,
 }
 
-impl From<s::DirectiveLocation> for DirectiveLocation {
-    fn from(loc: s::DirectiveLocation) -> Self {
-        use s::DirectiveLocation::*;
+impl From<ps::DirectiveLocation> for DirectiveLocation {
+    fn from(loc: ps::DirectiveLocation) -> Self {
+        use ps::DirectiveLocation::*;
         match loc {
             Query => DirectiveLocation::Query,
             Mutation => DirectiveLocation::Mutation,
@@ -1133,50 +797,23 @@ pub struct DirectiveDefinition {
     pub locations: Vec<DirectiveLocation>,
 }
 
-impl DirectiveDefinition {
-    pub fn new(name: Word) -> Self {
-        Self {
-            name,
-            arguments: vec![],
-            repeatable: false,
-            locations: vec![],
-        }
-    }
-}
-
-impl From<s::DirectiveDefinition> for DirectiveDefinition {
-    fn from(def: s::DirectiveDefinition) -> Self {
-        let name = word::<String>(def.name);
-        let arguments = def.arguments.into_iter().map(InputValue::from).collect();
-        let repeatable = def.repeatable;
-        let locations = def
-            .locations
-            .into_iter()
-            .map(DirectiveLocation::from)
-            .collect();
-        Self {
+impl<'a, T: Text<'a>> Compact<ps::DirectiveDefinition<'a, T>> for DirectiveDefinition {
+    fn compact(def: ps::DirectiveDefinition<'a, T>, cpt: &mut Compactor) -> Self {
+        let ps::DirectiveDefinition {
+            position: _,
+            description: _,
             name,
             arguments,
             repeatable,
             locations,
-        }
-    }
-}
+        } = def;
 
-impl Compact<s::DirectiveDefinition> for DirectiveDefinition {
-    fn compact(def: s::DirectiveDefinition, cpt: &mut Compactor) -> Self {
-        let name = cpt.word::<String>(def.name);
-        let arguments = def
-            .arguments
+        let name = cpt.word::<T>(name);
+        let arguments = arguments
             .into_iter()
             .map(|arg| InputValue::compact(arg, cpt))
             .collect();
-        let repeatable = def.repeatable;
-        let locations = def
-            .locations
-            .into_iter()
-            .map(DirectiveLocation::from)
-            .collect();
+        let locations = locations.into_iter().map(DirectiveLocation::from).collect();
         Self {
             name,
             arguments,
