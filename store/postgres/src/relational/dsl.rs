@@ -79,16 +79,19 @@ impl ValidGrouping<()> for DummyExpression {
 #[derive(Debug, Clone, Copy)]
 /// A wrapper around the `super::Table` struct that provides helper
 /// functions for generating SQL queries
-pub struct Table<'a>(&'a super::Table);
+pub struct Table<'a> {
+    /// The metadata for this table
+    meta: &'a super::Table,
+}
 
 impl<'a> Table<'a> {
-    pub(crate) fn new(table: &'a super::Table) -> Self {
-        Self(table)
+    pub(crate) fn new(meta: &'a super::Table) -> Self {
+        Self { meta }
     }
 
     /// Reference a column in this table and use the correct SQL type `ST`
     fn column<ST>(&self, name: &str) -> Option<Column<ST>> {
-        self.0
+        self.meta
             .columns
             .iter()
             .chain(META_COLS.into_iter())
@@ -132,14 +135,14 @@ impl<'a> Table<'a> {
         }
 
         match column_names {
-            AttributeNames::All => cols.extend(self.0.columns.iter()),
+            AttributeNames::All => cols.extend(self.meta.columns.iter()),
             AttributeNames::Select(names) => {
-                let pk = self.0.primary_key();
+                let pk = self.meta.primary_key();
                 cols.push(pk);
                 let mut names: Vec<_> = names.iter().filter(|name| *name != &*ID).collect();
                 names.sort();
                 for name in names {
-                    let column = self.0.column_for_field(&name)?;
+                    let column = self.meta.column_for_field(&name)?;
                     cols.push(column);
                 }
             }
@@ -156,7 +159,7 @@ impl<'a> Table<'a> {
 
         if T::WITH_SYSTEM_COLUMNS {
             cols.push(&*VID_COL);
-            if self.0.immutable {
+            if self.meta.immutable {
                 cols.push(&*BLOCK_COL);
             } else {
                 // TODO: We can't deserialize in4range
@@ -198,7 +201,7 @@ impl<'a> Table<'a> {
             table: &'b Table<'b>,
             column: &'b RelColumn,
         ) {
-            let name = format!("{}.{}::text", table.0.qualified_name, &column.name);
+            let name = format!("{}.{}::text", table.meta.qualified_name, &column.name);
 
             match (column.is_list(), column.is_nullable()) {
                 (true, true) => select.add_field(sql::<Nullable<Array<Text>>>(&name)),
@@ -213,7 +216,7 @@ impl<'a> Table<'a> {
             if column.name == TYPENAME_COL.name {
                 selection.add_field(sql::<Text>(&format!(
                     "'{}' as __typename",
-                    self.0.object.typename()
+                    self.meta.object.typename()
                 )));
                 continue;
             }
@@ -282,9 +285,9 @@ where
     fn walk_ast<'b>(&'b self, mut out: AstPass<'_, 'b, DB>) -> QueryResult<()> {
         out.unsafe_to_cache_prepared();
 
-        out.push_identifier(self.0.nsp.as_str())?;
+        out.push_identifier(self.meta.nsp.as_str())?;
         out.push_sql(".");
-        out.push_identifier(&self.0.name)?;
+        out.push_identifier(&self.meta.name)?;
         Ok(())
     }
 }
@@ -358,7 +361,7 @@ impl<'a> QueryFragment<Pg> for AtBlock<'a> {
     fn walk_ast<'b>(&'b self, mut out: AstPass<'_, 'b, Pg>) -> QueryResult<()> {
         out.unsafe_to_cache_prepared();
 
-        if self.table.0.immutable {
+        if self.table.meta.immutable {
             if self.block == BLOCK_NUMBER_MAX {
                 // `self.block <= BLOCK_NUMBER_MAX` is always true
                 out.push_sql("true");
@@ -379,7 +382,7 @@ impl<'a> QueryFragment<Pg> for AtBlock<'a> {
 
             let should_use_brin =
                 !self.filters_by_id || ENV_VARS.store.use_brin_for_all_query_types;
-            if self.table.0.is_account_like && self.block < BLOCK_NUMBER_MAX && should_use_brin {
+            if self.table.meta.is_account_like && self.block < BLOCK_NUMBER_MAX && should_use_brin {
                 // When block is BLOCK_NUMBER_MAX, these checks would be wrong; we
                 // don't worry about adding the equivalent in that case since
                 // we generally only see BLOCK_NUMBER_MAX here for metadata
@@ -427,7 +430,7 @@ impl<'a> QueryFragment<Pg> for BelongsToCausalityRegion<'a> {
     fn walk_ast<'b>(&'b self, mut out: AstPass<'_, 'b, Pg>) -> QueryResult<()> {
         out.unsafe_to_cache_prepared();
 
-        if self.table.0.has_causality_region {
+        if self.table.meta.has_causality_region {
             self.table.walk_ast(out.reborrow())?;
             out.push_sql(".causality_region");
             out.push_sql(" = ");
