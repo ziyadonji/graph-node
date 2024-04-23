@@ -76,17 +76,102 @@ impl ValidGrouping<()> for DummyExpression {
     type IsAggregate = is_aggregate::No;
 }
 
+/// A fixed size string for the table alias. We want to make sure that
+/// converting these to `&str` doesn't allocate and that they are small
+/// enough that the `Table` struct is only 16 bytes and can be `Copy`
+#[derive(Debug, Clone, Copy)]
+pub struct ChildAliasStr {
+    alias: [u8; 4],
+}
+
+impl ChildAliasStr {
+    fn new(idx: u8) -> Self {
+        let c = 'i' as u8;
+        let alias = if idx == 0 {
+            [c, 0, 0, 0]
+        } else if idx < 10 {
+            let ones = char::from_digit(idx as u32, 10).unwrap() as u8;
+            [c, ones, 0, 0]
+        } else if idx < 100 {
+            let tens = char::from_digit((idx / 10) as u32, 10).unwrap() as u8;
+            let ones = char::from_digit((idx % 10) as u32, 10).unwrap() as u8;
+            [c, tens, ones, 0]
+        } else {
+            let hundreds = char::from_digit((idx / 100) as u32, 10).unwrap() as u8;
+            let idx = idx % 100;
+            let tens = char::from_digit((idx / 10) as u32, 10).unwrap() as u8;
+            let ones = char::from_digit((idx % 10) as u32, 10).unwrap() as u8;
+            [c, hundreds, tens, ones]
+        };
+        ChildAliasStr { alias }
+    }
+
+    fn as_str(&self) -> &str {
+        let alias = if self.alias[1] == 0 {
+            return "i";
+        } else if self.alias[2] == 0 {
+            &self.alias[..2]
+        } else if self.alias[3] == 0 {
+            &self.alias[..3]
+        } else {
+            &self.alias
+        };
+        unsafe { std::str::from_utf8_unchecked(alias) }
+    }
+}
+
+/// A table alias. We use `c` as the main table alias and `i`, `i1`, `i2`,
+/// ... for child tables. The fact that we use these specific letters is
+/// historical and doesn't have any meaning.
+#[derive(Debug, Clone, Copy)]
+pub enum Alias {
+    Main,
+    Child(ChildAliasStr),
+}
+
+impl Alias {
+    fn as_str(&self) -> &str {
+        match self {
+            Alias::Main => "c",
+            Alias::Child(idx) => idx.as_str(),
+        }
+    }
+
+    fn child(idx: u8) -> Self {
+        Alias::Child(ChildAliasStr::new(idx))
+    }
+}
+
+#[test]
+fn alias() {
+    assert_eq!(Alias::Main.as_str(), "c");
+    assert_eq!(Alias::Child(ChildAliasStr::new(0)).as_str(), "i");
+    assert_eq!(Alias::Child(ChildAliasStr::new(1)).as_str(), "i1");
+    assert_eq!(Alias::Child(ChildAliasStr::new(10)).as_str(), "i10");
+    assert_eq!(Alias::Child(ChildAliasStr::new(100)).as_str(), "i100");
+    assert_eq!(Alias::Child(ChildAliasStr::new(255)).as_str(), "i255");
+}
+
 #[derive(Debug, Clone, Copy)]
 /// A wrapper around the `super::Table` struct that provides helper
 /// functions for generating SQL queries
 pub struct Table<'a> {
     /// The metadata for this table
     meta: &'a super::Table,
+    alias: Alias,
 }
 
 impl<'a> Table<'a> {
     pub(crate) fn new(meta: &'a super::Table) -> Self {
-        Self { meta }
+        Self {
+            meta,
+            alias: Alias::Main,
+        }
+    }
+
+    pub fn child(mut self, idx: u8) -> Self {
+        self.alias = Alias::child(idx);
+        self
     }
 
     /// Reference a column in this table and use the correct SQL type `ST`
@@ -201,7 +286,7 @@ impl<'a> Table<'a> {
             table: &'b Table<'b>,
             column: &'b RelColumn,
         ) {
-            let name = format!("{}.{}::text", table.meta.qualified_name, &column.name);
+            let name = format!("{}.{}::text", table.alias.as_str(), &column.name);
 
             match (column.is_list(), column.is_nullable()) {
                 (true, true) => select.add_field(sql::<Nullable<Array<Text>>>(&name)),
@@ -237,12 +322,30 @@ impl<'a> Table<'a> {
     }
 }
 
+pub struct FromTable<'a>(Table<'a>);
+
+impl<'a, DB> QueryFragment<DB> for FromTable<'a>
+where
+    DB: Backend,
+{
+    fn walk_ast<'b>(&'b self, mut out: AstPass<'_, 'b, DB>) -> QueryResult<()> {
+        out.unsafe_to_cache_prepared();
+
+        out.push_identifier(self.0.meta.nsp.as_str())?;
+        out.push_sql(".");
+        out.push_identifier(&self.0.meta.name)?;
+        out.push_sql(" as ");
+        out.push_sql(self.0.alias.as_str());
+        Ok(())
+    }
+}
+
 impl<'a> QuerySource for Table<'a> {
-    type FromClause = Self;
+    type FromClause = FromTable<'a>;
     type DefaultSelection = DummyExpression;
 
-    fn from_clause(&self) -> Self {
-        self.clone()
+    fn from_clause(&self) -> FromTable<'a> {
+        FromTable(*self)
     }
 
     fn default_selection(&self) -> Self::DefaultSelection {
@@ -285,9 +388,7 @@ where
     fn walk_ast<'b>(&'b self, mut out: AstPass<'_, 'b, DB>) -> QueryResult<()> {
         out.unsafe_to_cache_prepared();
 
-        out.push_identifier(self.meta.nsp.as_str())?;
-        out.push_sql(".");
-        out.push_identifier(&self.meta.name)?;
+        out.push_sql(self.alias.as_str());
         Ok(())
     }
 }
