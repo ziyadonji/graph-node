@@ -164,13 +164,6 @@ impl<'a> BlockRangeColumn<'a> {
             }
         }
     }
-
-    pub fn block(&self) -> BlockNumber {
-        match self {
-            BlockRangeColumn::Mutable { block, .. } => *block,
-            BlockRangeColumn::Immutable { block, .. } => *block,
-        }
-    }
 }
 
 impl<'a> BlockRangeColumn<'a> {
@@ -223,13 +216,6 @@ impl<'a> BlockRangeColumn<'a> {
                     out.push_bind_param::<Integer, _>(block)
                 }
             }
-        }
-    }
-
-    pub fn column_name(&self) -> &str {
-        match self {
-            BlockRangeColumn::Mutable { .. } => BLOCK_RANGE_COLUMN,
-            BlockRangeColumn::Immutable { .. } => BLOCK_COLUMN,
         }
     }
 
