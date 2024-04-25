@@ -3156,10 +3156,8 @@ pub enum ChildKey<'a> {
 #[derive(Debug, Clone)]
 pub enum SortKey<'a> {
     None,
-    /// Order by `id asc`
-    IdAsc(Option<dsl::BlockColumn<'a>>),
-    /// Order by `id desc`
-    IdDesc(Option<dsl::BlockColumn<'a>>),
+    /// Order by `id <direction>, [block <direction>]`
+    Id(SortDirection, Option<dsl::BlockColumn<'a>>),
     /// Order by some other column; `column` will never be `id`
     Key {
         column: dsl::Column<'a>,
@@ -3175,11 +3173,12 @@ impl<'a> fmt::Display for SortKey<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             SortKey::None => write!(f, "none"),
-            SortKey::IdAsc(Option::None) => write!(f, "{}", PRIMARY_KEY_COLUMN),
-            SortKey::IdAsc(Some(br)) => write!(f, "{}, {}", PRIMARY_KEY_COLUMN, br),
-            SortKey::IdDesc(Option::None) => write!(f, "{} desc", PRIMARY_KEY_COLUMN),
-            SortKey::IdDesc(Some(br)) => {
-                write!(f, "{} desc, {} desc", PRIMARY_KEY_COLUMN, br)
+            SortKey::Id(direction, br) => {
+                write!(f, "{}{}", PRIMARY_KEY_COLUMN, direction)?;
+                if let Some(br) = br {
+                    write!(f, ", {} {}", PRIMARY_KEY_COLUMN, br)?;
+                }
+                Ok(())
             }
             SortKey::Key {
                 column,
@@ -3187,13 +3186,13 @@ impl<'a> fmt::Display for SortKey<'a> {
                 direction,
             } => write!(
                 f,
-                "{} {}, {} {}",
+                "{}{}, {}{}",
                 column, direction, PRIMARY_KEY_COLUMN, direction
             ),
             SortKey::ChildKey(child) => match child {
                 ChildKey::Single(details) => write!(
                     f,
-                    "{} {}, {} {}",
+                    "{}{}, {}{}",
                     details.sort_by_column,
                     details.direction,
                     details.child_table.primary_key(),
@@ -3202,7 +3201,7 @@ impl<'a> fmt::Display for SortKey<'a> {
                 ChildKey::Many(_, details) => details.iter().try_for_each(|details| {
                     write!(
                         f,
-                        "{} {}, {} {}",
+                        "{}{}, {}{}",
                         details.sort_by_column,
                         details.direction,
                         details.child_table.primary_key(),
@@ -3273,17 +3272,20 @@ pub enum SortDirection {
 }
 
 impl SortDirection {
-    fn as_str(&self) -> &'static str {
+    /// Generate either `""` or `" desc"`; convenient for SQL generation
+    /// without needing an additional space to separate it from preceding
+    /// text
+    fn as_sql(&self) -> &'static str {
         match self {
-            SortDirection::Asc => "asc",
-            SortDirection::Desc => "desc",
+            SortDirection::Asc => "",
+            SortDirection::Desc => " desc",
         }
     }
 }
 
 impl std::fmt::Display for SortDirection {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
+        write!(f, "{}", self.as_sql())
     }
 }
 
@@ -3332,11 +3334,7 @@ impl<'a> SortKey<'a> {
                 }
             } else if column.is_primary_key() {
                 let block_column = use_block_column.block_column(table);
-                use SortDirection::*;
-                match direction {
-                    Asc => Ok(SortKey::IdAsc(block_column)),
-                    Desc => Ok(SortKey::IdDesc(block_column)),
-                }
+                Ok(SortKey::Id(direction, block_column))
             } else {
                 Ok(SortKey::Key {
                     column,
@@ -3625,7 +3623,7 @@ impl<'a> SortKey<'a> {
             EntityOrder::Descending(attr, _) => {
                 with_key(table, attr, filter, Desc, use_block_column)
             }
-            EntityOrder::Default => Ok(SortKey::IdAsc(use_block_column.block_column(table))),
+            EntityOrder::Default => Ok(SortKey::Id(Asc, use_block_column.block_column(table))),
             EntityOrder::Unordered => Ok(SortKey::None),
             EntityOrder::ChildAscending(kind) => match kind {
                 EntityOrderByChild::Object(child, entity_type) => with_child_object_key(
@@ -3680,7 +3678,7 @@ impl<'a> SortKey<'a> {
     ) -> QueryResult<()> {
         match self {
             SortKey::None => {}
-            SortKey::IdAsc(br_column) | SortKey::IdDesc(br_column) => {
+            SortKey::Id(_, br_column) => {
                 if let Some(br_column) = br_column {
                     out.push_sql(", ");
 
@@ -3780,9 +3778,10 @@ impl<'a> SortKey<'a> {
         use SortDirection::*;
         match self {
             SortKey::None => Ok(()),
-            SortKey::IdAsc(br_column) => {
+            SortKey::Id(direction, br_column) => {
                 out.push_sql("order by ");
                 out.push_identifier(PRIMARY_KEY_COLUMN)?;
+                out.push_sql(direction.as_sql());
                 if let Some(br_column) = br_column {
                     if use_sort_key_alias {
                         out.push_sql(", ");
@@ -3791,22 +3790,7 @@ impl<'a> SortKey<'a> {
                         out.push_sql(", ");
                         out.push_sql(br_column.name());
                     }
-                }
-                Ok(())
-            }
-            SortKey::IdDesc(br_column) => {
-                out.push_sql("order by ");
-                out.push_identifier(PRIMARY_KEY_COLUMN)?;
-                out.push_sql(" desc");
-                if let Some(br_column) = br_column {
-                    if use_sort_key_alias {
-                        out.push_sql(", ");
-                        out.push_sql(SORT_KEY_COLUMN);
-                    } else {
-                        out.push_sql(", ");
-                        out.push_sql(br_column.name());
-                    }
-                    out.push_sql(" desc");
+                    out.push_sql(direction.as_sql());
                 }
                 Ok(())
             }
@@ -3884,14 +3868,10 @@ impl<'a> SortKey<'a> {
 
         match self {
             SortKey::None => Ok(()),
-            SortKey::IdAsc(_) => {
-                order_by_parent_id(out);
-                out.push_identifier(PRIMARY_KEY_COLUMN)
-            }
-            SortKey::IdDesc(_) => {
+            SortKey::Id(direction, _) => {
                 order_by_parent_id(out);
                 out.push_identifier(PRIMARY_KEY_COLUMN)?;
-                out.push_sql(" desc");
+                out.push_sql(direction.as_sql());
                 Ok(())
             }
             SortKey::Key {
@@ -3958,15 +3938,13 @@ impl<'a> SortKey<'a> {
                 }
             }
         }
-        out.push_sql(" ");
-        out.push_sql(direction.as_str());
+        out.push_sql(direction.as_sql());
         out.push_sql(", ");
         if !use_sort_key_alias {
             push_prefix(rest_prefix, out);
         }
         out.push_identifier(PRIMARY_KEY_COLUMN)?;
-        out.push_sql(" ");
-        out.push_sql(direction.as_str());
+        out.push_sql(direction.as_sql());
         Ok(())
     }
 
@@ -4008,14 +3986,13 @@ impl<'a> SortKey<'a> {
             child.sort_by_column.walk_ast(out.reborrow())?;
         }
 
-        out.push_sql(") ");
+        out.push_sql(")");
 
-        out.push_sql(direction.as_str());
+        out.push_sql(direction.as_sql());
         out.push_sql(", ");
 
         parent_pk.walk_ast(out.reborrow())?;
-        out.push_sql(" ");
-        out.push_sql(direction.as_str());
+        out.push_sql(direction.as_sql());
         Ok(())
     }
 
@@ -4038,9 +4015,9 @@ impl<'a> SortKey<'a> {
 
             child.child_join_column.walk_ast(out.reborrow())?;
         }
-        out.push_sql(") ");
+        out.push_sql(")");
 
-        out.push_sql(direction.as_str());
+        out.push_sql(direction.as_sql());
 
         if UseBlockColumn::Yes == use_block_column {
             out.push_sql(", coalesce(");
@@ -4054,8 +4031,8 @@ impl<'a> SortKey<'a> {
 
                 child.child_br.walk_ast(out.reborrow())?;
             }
-            out.push_sql(") ");
-            out.push_sql(direction.as_str());
+            out.push_sql(")");
+            out.push_sql(direction.as_sql());
         }
 
         Ok(())
