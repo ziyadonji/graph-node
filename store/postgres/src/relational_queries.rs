@@ -3091,7 +3091,7 @@ pub struct ChildKeyDetails<'a> {
     /// Column of the child table that sorting is done on
     pub sort_by_column: dsl::Column<'a>,
     /// Either `asc` or `desc`
-    pub direction: &'static str,
+    pub direction: SortDirection,
 }
 
 #[derive(Debug, Clone)]
@@ -3109,7 +3109,7 @@ pub struct ChildKeyAndIdSharedDetails<'a> {
     /// Column of the child table that sorting is done on
     pub sort_by_column: dsl::Column<'a>,
     /// Either `asc` or `desc`
-    pub direction: &'static str,
+    pub direction: SortDirection,
 }
 
 #[derive(Debug, Clone)]
@@ -3164,7 +3164,7 @@ pub enum SortKey<'a> {
     Key {
         column: dsl::Column<'a>,
         value: Option<&'a str>,
-        direction: &'static str,
+        direction: SortDirection,
     },
     /// Order by some other column; `column` will never be `id`
     ChildKey(ChildKey<'a>),
@@ -3266,8 +3266,26 @@ impl<'a> fmt::Display for SortKey<'a> {
     }
 }
 
-const ASC: &str = "asc";
-const DESC: &str = "desc";
+#[derive(Debug, Clone, Copy)]
+pub enum SortDirection {
+    Asc,
+    Desc,
+}
+
+impl SortDirection {
+    fn as_str(&self) -> &'static str {
+        match self {
+            SortDirection::Asc => "asc",
+            SortDirection::Desc => "desc",
+        }
+    }
+}
+
+impl std::fmt::Display for SortDirection {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
 
 impl<'a> SortKey<'a> {
     fn new(
@@ -3280,7 +3298,7 @@ impl<'a> SortKey<'a> {
         fn sort_key_from_value<'a>(
             column: dsl::Column<'a>,
             value: &'a Value,
-            direction: &'static str,
+            direction: SortDirection,
         ) -> Result<SortKey<'a>, QueryExecutionError> {
             let sort_value = value.as_str();
 
@@ -3295,7 +3313,7 @@ impl<'a> SortKey<'a> {
             table: dsl::Table<'a>,
             attribute: String,
             filter: Option<&'a EntityFilter>,
-            direction: &'static str,
+            direction: SortDirection,
             use_block_column: UseBlockColumn,
         ) -> Result<SortKey<'a>, QueryExecutionError> {
             let column = table.column_for_field(&attribute)?;
@@ -3314,10 +3332,10 @@ impl<'a> SortKey<'a> {
                 }
             } else if column.is_primary_key() {
                 let block_column = use_block_column.block_column(table);
+                use SortDirection::*;
                 match direction {
-                    ASC => Ok(SortKey::IdAsc(block_column)),
-                    DESC => Ok(SortKey::IdDesc(block_column)),
-                    _ => unreachable!("direction is 'asc' or 'desc'"),
+                    Asc => Ok(SortKey::IdAsc(block_column)),
+                    Desc => Ok(SortKey::IdDesc(block_column)),
                 }
             } else {
                 Ok(SortKey::Key {
@@ -3336,7 +3354,7 @@ impl<'a> SortKey<'a> {
             derived: bool,
             attribute: String,
             use_block_column: UseBlockColumn,
-            direction: &'static str,
+            direction: SortDirection,
         ) -> Result<SortKey<'a>, QueryExecutionError> {
             let child_table = child_table.child(1);
             let sort_by_column = child_table.column_for_field(&attribute)?;
@@ -3375,8 +3393,9 @@ impl<'a> SortKey<'a> {
                     let child_pk = child_table.primary_key();
                     let child_br = child_table.block_column();
                     let child_at_block = child_table.at_block(block);
+                    use SortDirection::*;
                     return match direction {
-                        ASC => Ok(SortKey::ChildKey(ChildKey::IdAsc(
+                        Asc => Ok(SortKey::ChildKey(ChildKey::IdAsc(
                             ChildIdDetails {
                                 child_table,
                                 child_from,
@@ -3388,7 +3407,7 @@ impl<'a> SortKey<'a> {
                             },
                             use_block_column,
                         ))),
-                        DESC => Ok(SortKey::ChildKey(ChildKey::IdDesc(
+                        Desc => Ok(SortKey::ChildKey(ChildKey::IdDesc(
                             ChildIdDetails {
                                 child_table,
                                 child_from,
@@ -3400,7 +3419,6 @@ impl<'a> SortKey<'a> {
                             },
                             use_block_column,
                         ))),
-                        _ => unreachable!("direction is 'asc' or 'desc'"),
                     };
                 }
 
@@ -3426,7 +3444,7 @@ impl<'a> SortKey<'a> {
             parent_table: dsl::Table<'a>,
             entity_types: Vec<EntityType>,
             child: EntityOrderByChildInfo,
-            direction: &'static str,
+            direction: SortDirection,
         ) -> Result<Vec<ChildKeyAndIdSharedDetails<'a>>, QueryExecutionError> {
             assert!(entity_types.len() < 255);
             return entity_types
@@ -3497,7 +3515,7 @@ impl<'a> SortKey<'a> {
             child: EntityOrderByChildInfo,
             entity_types: Vec<EntityType>,
             use_block_column: UseBlockColumn,
-            direction: &'static str,
+            direction: SortDirection,
         ) -> Result<SortKey<'a>, QueryExecutionError> {
             if entity_types.is_empty() {
                 return Err(QueryExecutionError::ConstraintViolation(
@@ -3514,8 +3532,9 @@ impl<'a> SortKey<'a> {
                     "Sorting by fulltext fields".to_string(),
                 ))
             } else if sort_by_column.is_primary_key() {
-                if direction == ASC {
-                    Ok(SortKey::ChildKey(ChildKey::ManyIdAsc(
+                use SortDirection::*;
+                match direction {
+                    Asc => Ok(SortKey::ChildKey(ChildKey::ManyIdAsc(
                         build_children_vec(
                             layout,
                             block,
@@ -3536,9 +3555,8 @@ impl<'a> SortKey<'a> {
                         })
                         .collect(),
                         use_block_column,
-                    )))
-                } else {
-                    Ok(SortKey::ChildKey(ChildKey::ManyIdDesc(
+                    ))),
+                    Desc => Ok(SortKey::ChildKey(ChildKey::ManyIdDesc(
                         build_children_vec(
                             layout,
                             block,
@@ -3559,7 +3577,7 @@ impl<'a> SortKey<'a> {
                         })
                         .collect(),
                         use_block_column,
-                    )))
+                    ))),
                 }
             } else {
                 Ok(SortKey::ChildKey(ChildKey::Many(
@@ -3601,10 +3619,11 @@ impl<'a> SortKey<'a> {
             UseBlockColumn::No
         };
 
+        use SortDirection::*;
         match order {
-            EntityOrder::Ascending(attr, _) => with_key(table, attr, filter, ASC, use_block_column),
+            EntityOrder::Ascending(attr, _) => with_key(table, attr, filter, Asc, use_block_column),
             EntityOrder::Descending(attr, _) => {
-                with_key(table, attr, filter, DESC, use_block_column)
+                with_key(table, attr, filter, Desc, use_block_column)
             }
             EntityOrder::Default => Ok(SortKey::IdAsc(use_block_column.block_column(table))),
             EntityOrder::Unordered => Ok(SortKey::None),
@@ -3617,7 +3636,7 @@ impl<'a> SortKey<'a> {
                     child.derived,
                     child.sort_by_attribute,
                     use_block_column,
-                    ASC,
+                    Asc,
                 ),
                 EntityOrderByChild::Interface(child, entity_types) => with_child_interface_key(
                     layout,
@@ -3626,7 +3645,7 @@ impl<'a> SortKey<'a> {
                     child,
                     entity_types,
                     use_block_column,
-                    ASC,
+                    Asc,
                 ),
             },
             EntityOrder::ChildDescending(kind) => match kind {
@@ -3638,7 +3657,7 @@ impl<'a> SortKey<'a> {
                     child.derived,
                     child.sort_by_attribute,
                     use_block_column,
-                    DESC,
+                    Desc,
                 ),
                 EntityOrderByChild::Interface(child, entity_types) => with_child_interface_key(
                     layout,
@@ -3647,7 +3666,7 @@ impl<'a> SortKey<'a> {
                     child,
                     entity_types,
                     use_block_column,
-                    DESC,
+                    Desc,
                 ),
             },
         }
@@ -3758,6 +3777,7 @@ impl<'a> SortKey<'a> {
         out: &mut AstPass<'_, 'b, Pg>,
         use_sort_key_alias: bool,
     ) -> QueryResult<()> {
+        use SortDirection::*;
         match self {
             SortKey::None => Ok(()),
             SortKey::IdAsc(br_column) => {
@@ -3804,7 +3824,7 @@ impl<'a> SortKey<'a> {
                     ChildKey::Single(child) => SortKey::sort_expr(
                         &child.sort_by_column,
                         &None,
-                        child.direction,
+                        &child.direction,
                         Some("c"),
                         use_sort_key_alias,
                         out,
@@ -3812,15 +3832,15 @@ impl<'a> SortKey<'a> {
                     ChildKey::Many(parent_pk, children) => SortKey::multi_sort_expr(
                         parent_pk,
                         children,
-                        children.first().unwrap().direction,
+                        &children.first().unwrap().direction,
                         out,
                     ),
 
                     ChildKey::ManyIdAsc(children, use_block_column) => {
-                        SortKey::multi_sort_id_expr(children, ASC, *use_block_column, out)
+                        SortKey::multi_sort_id_expr(children, Asc, *use_block_column, out)
                     }
                     ChildKey::ManyIdDesc(children, use_block_column) => {
-                        SortKey::multi_sort_id_expr(children, DESC, *use_block_column, out)
+                        SortKey::multi_sort_id_expr(children, Desc, *use_block_column, out)
                     }
 
                     ChildKey::IdAsc(child, use_block_column) => {
@@ -3893,7 +3913,7 @@ impl<'a> SortKey<'a> {
     fn sort_expr<'b>(
         column: &'b dsl::Column<'b>,
         value: &'b Option<&str>,
-        direction: &str,
+        direction: &'b SortDirection,
         rest_prefix: Option<&str>,
         use_sort_key_alias: bool,
         out: &mut AstPass<'_, 'b, Pg>,
@@ -3939,14 +3959,14 @@ impl<'a> SortKey<'a> {
             }
         }
         out.push_sql(" ");
-        out.push_sql(direction);
+        out.push_sql(direction.as_str());
         out.push_sql(", ");
         if !use_sort_key_alias {
             push_prefix(rest_prefix, out);
         }
         out.push_identifier(PRIMARY_KEY_COLUMN)?;
         out.push_sql(" ");
-        out.push_sql(direction);
+        out.push_sql(direction.as_str());
         Ok(())
     }
 
@@ -3955,7 +3975,7 @@ impl<'a> SortKey<'a> {
     fn multi_sort_expr<'b>(
         parent_pk: &'b dsl::Column<'b>,
         children: &'b [ChildKeyDetails<'b>],
-        direction: &str,
+        direction: &'b SortDirection,
         out: &mut AstPass<'_, 'b, Pg>,
     ) -> QueryResult<()> {
         for child in children {
@@ -3990,12 +4010,12 @@ impl<'a> SortKey<'a> {
 
         out.push_sql(") ");
 
-        out.push_sql(direction);
+        out.push_sql(direction.as_str());
         out.push_sql(", ");
 
         parent_pk.walk_ast(out.reborrow())?;
         out.push_sql(" ");
-        out.push_sql(direction);
+        out.push_sql(direction.as_str());
         Ok(())
     }
 
@@ -4003,7 +4023,7 @@ impl<'a> SortKey<'a> {
     ///   COALESCE(id1, id2) direction, [COALESCE(br_column1, br_column2) direction]
     fn multi_sort_id_expr<'b>(
         children: &'b [ChildIdDetails<'b>],
-        direction: &str,
+        direction: SortDirection,
         use_block_column: UseBlockColumn,
         out: &mut AstPass<'_, 'b, Pg>,
     ) -> QueryResult<()> {
@@ -4020,7 +4040,7 @@ impl<'a> SortKey<'a> {
         }
         out.push_sql(") ");
 
-        out.push_sql(direction);
+        out.push_sql(direction.as_str());
 
         if UseBlockColumn::Yes == use_block_column {
             out.push_sql(", coalesce(");
@@ -4035,7 +4055,7 @@ impl<'a> SortKey<'a> {
                 child.child_br.walk_ast(out.reborrow())?;
             }
             out.push_sql(") ");
-            out.push_sql(direction);
+            out.push_sql(direction.as_str());
         }
 
         Ok(())
