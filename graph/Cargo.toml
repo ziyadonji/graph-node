@@ -3,6 +3,9 @@ name = "graph"
 version.workspace = true
 edition.workspace = true
 
+[features]
+snmalloc = []
+
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1.74"
@@ -48,6 +51,7 @@ slog = { version = "2.7.0", features = [
     "release_max_level_trace",
     "max_level_trace",
 ] }
+snmalloc-rs = { workspace = true }
 # TODO: This should be reverted to the latest version once it's published
 # stable-hash_legacy = { version = "0.3.3", package = "stable-hash" }
 # stable-hash = { version = "0.4.2" }

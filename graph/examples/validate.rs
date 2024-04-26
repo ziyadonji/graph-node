@@ -74,6 +74,7 @@ unsafe impl GlobalAlloc for Counter {
     }
 }
 
+#[cfg(not(snmalloc))]
 #[global_allocator]
 static A: Counter = Counter;
 

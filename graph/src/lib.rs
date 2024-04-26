@@ -66,6 +66,10 @@ pub use tokio_retry;
 pub use tokio_stream;
 pub use url;
 
+#[cfg(snmalloc)]
+#[global_allocator]
+static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
+
 /// A prelude that makes all system component traits and data types available.
 ///
 /// Add the following code to import all traits and data types listed below at once.
