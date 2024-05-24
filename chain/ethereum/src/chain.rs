@@ -11,6 +11,7 @@ use graph::prelude::{
     EthereumCallCache, LightEthereumBlock, LightEthereumBlockExt, MetricsRegistry,
 };
 use graph::schema::InputSchema;
+use graph::slog::info;
 use graph::substreams::Clock;
 use graph::{
     blockchain::{
@@ -640,6 +641,7 @@ impl TriggersAdapterTrait<Chain> for TriggersAdapter {
 
         match &block {
             BlockFinality::Final(_) => {
+                info!(logger, "====> FINAL_BLOCK"; "block_number" => block.number());
                 let adapter = self.chain_client.rpc()?.cheapest_with(&self.capabilities)?;
                 let block_number = block.number() as BlockNumber;
                 let blocks = blocks_with_triggers(
@@ -657,6 +659,7 @@ impl TriggersAdapterTrait<Chain> for TriggersAdapter {
                 Ok(blocks.into_iter().next().unwrap())
             }
             BlockFinality::NonFinal(full_block) => {
+                info!(logger, "====> NON_FINAL_BLOCK"; "block_number" => full_block.ethereum_block.block.number.map(|n| n.as_u64()).unwrap_or(0));
                 let mut triggers = Vec::new();
                 triggers.append(&mut parse_log_triggers(
                     &filter.log,

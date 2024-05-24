@@ -1,4 +1,5 @@
 use crate::{chain::BlockFinality, EthereumAdapter, EthereumAdapterTrait, ENV_VARS};
+use graph::prelude::web3::types::H160;
 use graph::{
     blockchain::{BlockHash, BlockIngestor, BlockPtr, IngestorError},
     cheap_clone::CheapClone,
@@ -168,6 +169,19 @@ impl PollingBlockIngestor {
             .eth_adapter
             .load_full_block(&self.logger, block)
             .await?;
+
+        let block_number = ethereum_block.block.number.unwrap_or_default().as_u64();
+
+        let zero_from_txns: Vec<_> = ethereum_block
+            .transaction_receipts
+            .iter()
+            .filter(|tx| tx.from == H160::zero())
+            .map(|tx| tx.transaction_hash)
+            .collect();
+
+        if zero_from_txns.len() > 0 {
+            warn!(self.logger, "====> ❗️Block with hash {} and number {} has transactions with zero from address", block_hash, block_number; "zero_from_txns" => format!("{:?}", zero_from_txns));
+        }
 
         // We need something that implements `Block` to store the block; the
         // store does not care whether the block is final or not

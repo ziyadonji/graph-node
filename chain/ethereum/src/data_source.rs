@@ -8,7 +8,7 @@ use graph::prelude::ethabi::StateMutability;
 use graph::prelude::futures03::future::try_join;
 use graph::prelude::futures03::stream::FuturesOrdered;
 use graph::prelude::{Link, SubgraphManifestValidationError};
-use graph::slog::{o, trace};
+use graph::slog::{info, o, trace};
 use std::collections::HashSet;
 use std::num::NonZeroU32;
 use std::str::FromStr;
@@ -727,6 +727,14 @@ impl DataSource {
                         .transaction_for_log(&log)
                         .context("Found no transaction for event")?
                 } else {
+                    info!(
+                        logger,
+                        "====> Using dummy transaction for event without transaction";
+                        "event" => &event_handler.event,
+                        "block" => format!("{}", block.number.map(|v|v.as_u64()).unwrap_or_default()),
+                        "block_hash" => format!("{:?}", block.hash),
+                        "transaction" => format!("{:?}", log.transaction_hash),
+                    );
                     // Infer some fields from the log and fill the rest with zeros.
                     Transaction {
                         hash: log.transaction_hash.unwrap(),
@@ -737,6 +745,16 @@ impl DataSource {
                         ..Transaction::default()
                     }
                 };
+
+                info!(
+                    logger,
+                    "Processing log with handler";
+                    "handler" => &event_handler.handler,
+                    "event" => &event_handler.event,
+                    "address" => format!("{}", &log.address),
+                    "transaction" => format!("{}", &transaction.hash),
+                    "transaction_from" => format!("{}", &transaction.from.unwrap_or_default()),
+                );
 
                 let logging_extras = Arc::new(o! {
                     "signature" => event_handler.event.to_string(),
