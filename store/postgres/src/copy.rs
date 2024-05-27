@@ -816,6 +816,7 @@ impl Connection {
             let arr = index_list.indexes_for_table(
                 &namespace,
                 &table.batch.src.name.to_string(),
+                &table.batch.dst.columns,
                 true,
                 true,
             );

@@ -377,6 +377,7 @@ impl Table {
                 let arr = ind_def.indexes_for_table(
                     &self.namespace.to_string(),
                     &self.name.to_string(),
+                    &self.columns,
                     false,
                     false,
                 );

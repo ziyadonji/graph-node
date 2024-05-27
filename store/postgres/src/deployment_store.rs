@@ -53,7 +53,7 @@ use crate::detail::ErrorDetail;
 use crate::dynds::DataSourcesTable;
 use crate::primary::DeploymentId;
 use crate::relational::index::{CreateIndex, Method};
-use crate::relational::{Layout, LayoutCache, SqlName, Table};
+use crate::relational::{Column, Layout, LayoutCache, SqlName, Table};
 use crate::relational_queries::FromEntityData;
 use crate::{advisory_lock, catalog, retry};
 use crate::{connection_pool::ConnectionPool, detail};
@@ -2086,26 +2086,25 @@ pub struct IndexList {
 }
 
 impl IndexList {
-    pub fn can_postpone(ci: &CreateIndex) -> bool {
-        let res = ci.is_attribute_index() && ci.is_default_index();
-        res
-    }
     pub fn indexes_for_table(
         &self,
         namespace: &String,
         table_name: &String,
+        columns: &Vec<Column>,
         postponed: bool,
         concurent_if_not_exist: bool,
     ) -> Vec<String> {
         let mut arr = vec![];
         if let Some(vec) = self.indexes.get(table_name) {
             for ci in vec {
-                if !ci.is_constraint() && !ci.is_pkey() && postponed == ci.to_postpone() {
-                    if let Ok(sql) = ci
-                        .with_nsp(namespace.clone())
-                        .to_sql(concurent_if_not_exist, concurent_if_not_exist)
-                    {
-                        arr.push(sql)
+                if ci.all_colums_in_dest(columns) {
+                    if !ci.is_constraint() && !ci.is_pkey() && postponed == ci.to_postpone() {
+                        if let Ok(sql) = ci
+                            .with_nsp(namespace.clone())
+                            .to_sql(concurent_if_not_exist, concurent_if_not_exist)
+                        {
+                            arr.push(sql)
+                        }
                     }
                 }
             }

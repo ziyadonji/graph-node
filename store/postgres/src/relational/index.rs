@@ -11,7 +11,7 @@ use graph::prelude::{
 use crate::block_range::{BLOCK_COLUMN, BLOCK_RANGE_COLUMN};
 use crate::relational::{BYTE_ARRAY_PREFIX_SIZE, STRING_PREFIX_SIZE};
 
-use super::VID_COLUMN;
+use super::{Column, VID_COLUMN};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Method {
@@ -593,6 +593,30 @@ impl CreateIndex {
         }
     }
 
+    pub fn all_colums_in_dest(&self, columns: &Vec<Column>) -> bool {
+        match self {
+            CreateIndex::Unknown { defn: _ } => (),
+            CreateIndex::Parsed { columns: cols, .. } => {
+                for c in cols {
+                    match c {
+                        Expr::Column(column_name) => {
+                            if !contains(columns, column_name) {
+                                return false;
+                            }
+                        }
+                        Expr::Prefix(column_name, _) => {
+                            if !contains(columns, column_name) {
+                                return false;
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+            }
+        }
+        true
+    }
+
     /// Generate a SQL statement that creates this index. If `concurrent` is
     /// `true`, make it a concurrent index creation. If `if_not_exists` is
     /// `true` add a `if not exists` clause to the index creation.
@@ -633,6 +657,15 @@ fn has_suffix(s: &str, suffix: &str) -> bool {
 
 fn has_prefix(s: &str, prefix: &str) -> bool {
     s.starts_with(prefix) || s.ends_with("\"") && s.starts_with(format!("\"{}", prefix).as_str())
+}
+
+fn contains(columns: &Vec<Column>, column_name: &String) -> bool {
+    for c in columns.iter() {
+        if c.name.to_string() == *column_name {
+            return true;
+        }
+    }
+    false
 }
 
 #[test]
