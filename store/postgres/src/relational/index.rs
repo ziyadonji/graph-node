@@ -600,6 +600,7 @@ impl CreateIndex {
                 for c in cols {
                     match c {
                         Expr::Column(column_name) => {
+                            // TODO: simplify
                             if !contains(columns, column_name) {
                                 return false;
                             }
@@ -609,7 +610,22 @@ impl CreateIndex {
                                 return false;
                             }
                         }
-                        _ => (),
+                        Expr::BlockRange | Expr::BlockRangeLower | Expr::BlockRangeUpper => {
+                            if !contains(columns, &"block_range".to_string()) {
+                                return false;
+                            }
+                        }
+                        Expr::Vid => {
+                            if !contains(columns, &"vid".to_string()) {
+                                return false;
+                            }
+                        }
+                        Expr::Block => {
+                            if !contains(columns, &"block".to_string()) {
+                                return false;
+                            }
+                        }
+                        _ => return false,
                     }
                 }
             }
