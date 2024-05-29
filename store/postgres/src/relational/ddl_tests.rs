@@ -181,7 +181,7 @@ fn test_manual_index_creation_ddl() {
 #[test]
 fn generate_ddl() {
     let layout = test_layout(THING_GQL);
-    let sql = layout.as_ddl(false, None).expect("Failed to generate DDL");
+    let sql = layout.as_ddl(None).expect("Failed to generate DDL");
     assert_eq!(THING_DDL, &sql); // Use `assert_eq!` to also test the formatting.
 
     // let layout = test_layout(THING_GQL);
@@ -189,27 +189,27 @@ fn generate_ddl() {
     // check_eqv(THING_DDL_ON_COPY, &sql);
 
     let layout = test_layout(MUSIC_GQL);
-    let sql = layout.as_ddl(false, None).expect("Failed to generate DDL");
+    let sql = layout.as_ddl(None).expect("Failed to generate DDL");
     check_eqv(MUSIC_DDL, &sql);
 
     let layout = test_layout(FOREST_GQL);
-    let sql = layout.as_ddl(false, None).expect("Failed to generate DDL");
+    let sql = layout.as_ddl(None).expect("Failed to generate DDL");
     check_eqv(FOREST_DDL, &sql);
 
     let layout = test_layout(FULLTEXT_GQL);
-    let sql = layout.as_ddl(false, None).expect("Failed to generate DDL");
+    let sql = layout.as_ddl(None).expect("Failed to generate DDL");
     check_eqv(FULLTEXT_DDL, &sql);
 
     let layout = test_layout(FORWARD_ENUM_GQL);
-    let sql = layout.as_ddl(false, None).expect("Failed to generate DDL");
+    let sql = layout.as_ddl(None).expect("Failed to generate DDL");
     check_eqv(FORWARD_ENUM_SQL, &sql);
 
     let layout = test_layout(TS_GQL);
-    let sql = layout.as_ddl(false, None).expect("Failed to generate DDL");
+    let sql = layout.as_ddl(None).expect("Failed to generate DDL");
     check_eqv(TS_SQL, &sql);
 
     let layout = test_layout(LIFETIME_GQL);
-    let sql = layout.as_ddl(false, None).expect("Failed to generate DDL");
+    let sql = layout.as_ddl(None).expect("Failed to generate DDL");
     check_eqv(LIFETIME_SQL, &sql);
 }
 

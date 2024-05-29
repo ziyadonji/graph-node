@@ -180,7 +180,6 @@ impl DeploymentStore {
         graft_base: Option<Arc<Layout>>,
         replace: bool,
         on_sync: OnSync,
-        is_copy_op: bool,
         index_def: Option<IndexList>,
     ) -> Result<(), StoreError> {
         let mut conn = self.get_conn()?;
@@ -214,7 +213,6 @@ impl DeploymentStore {
                     site.clone(),
                     schema,
                     entities_with_causality_region.into_iter().collect(),
-                    is_copy_op,
                     index_def,
                 )?;
                 // See if we are grafting and check that the graft is permissible

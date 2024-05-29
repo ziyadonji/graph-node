@@ -584,7 +584,6 @@ impl SubgraphStoreInner {
             graft_base_layout,
             replace,
             OnSync::None,
-            index_def.is_some(),
             index_def,
         )?;
 
@@ -677,7 +676,6 @@ impl SubgraphStoreInner {
             Some(graft_base),
             false,
             on_sync,
-            true,
             Some(index_def),
         )?;
 

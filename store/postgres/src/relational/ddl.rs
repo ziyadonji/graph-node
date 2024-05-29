@@ -29,11 +29,7 @@ impl Layout {
     ///
     /// See the unit tests at the end of this file for the actual DDL that
     /// gets generated
-    pub fn as_ddl(
-        &self,
-        is_copy_op: bool,
-        index_def: Option<IndexList>,
-    ) -> Result<String, fmt::Error> {
+    pub fn as_ddl(&self, index_def: Option<IndexList>) -> Result<String, fmt::Error> {
         let mut out = String::new();
 
         // Output enums first so table definitions can reference them
@@ -48,7 +44,6 @@ impl Layout {
             table.as_ddl(
                 &self.input_schema,
                 &self.catalog,
-                is_copy_op,
                 index_def.as_ref(),
                 &mut out,
             )?;
@@ -367,34 +362,22 @@ impl Table {
         &self,
         schema: &InputSchema,
         catalog: &Catalog,
-        is_copy_op: bool,
         index_def: Option<&IndexList>,
         out: &mut String,
     ) -> fmt::Result {
         self.create_table(out)?;
-        if is_copy_op && ENV_VARS.postpone_attribute_index_creation {
-            if let Some(ind_def) = index_def {
-                // TODO: add the rest of colums like block_range etc. and pass as a parameter
-                let mut _cols = self
-                    .columns
-                    .iter()
-                    .map(|i| i.name.to_string())
-                    .collect::<Vec<String>>();
-                let arr = ind_def.indexes_for_table(
-                    &self.namespace.to_string(),
-                    &self.name.to_string(),
-                    &self,
-                    false,
-                    false,
-                );
-                println!("CREATE INITIALY: {:?}", arr);
-                for sql in arr {
-                    writeln!(out, "{};", sql).expect("properly formated index statements")
-                }
-                Ok(())
-            } else {
-                panic!("Missinge index list for copy operation");
+        if index_def.is_some() && ENV_VARS.postpone_attribute_index_creation {
+            let arr = index_def.unwrap().indexes_for_table(
+                &self.namespace.to_string(),
+                &self.name.to_string(),
+                &self,
+                false,
+                false,
+            );
+            for sql in arr {
+                writeln!(out, "{};", sql).expect("properly formated index statements")
             }
+            Ok(())
         } else {
             self.create_time_travel_indexes(catalog, out)?;
             self.create_attribute_indexes(out)?;
