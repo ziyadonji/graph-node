@@ -375,7 +375,7 @@ impl Table {
         if is_copy_op && ENV_VARS.postpone_attribute_index_creation {
             if let Some(ind_def) = index_def {
                 // TODO: add the rest of colums like block_range etc. and pass as a parameter
-                let mut cols = self
+                let mut _cols = self
                     .columns
                     .iter()
                     .map(|i| i.name.to_string())
@@ -383,7 +383,7 @@ impl Table {
                 let arr = ind_def.indexes_for_table(
                     &self.namespace.to_string(),
                     &self.name.to_string(),
-                    &self.columns,
+                    &self,
                     false,
                     false,
                 );

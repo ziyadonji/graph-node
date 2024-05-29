@@ -11,7 +11,7 @@ use graph::prelude::{
 use crate::block_range::{BLOCK_COLUMN, BLOCK_RANGE_COLUMN};
 use crate::relational::{BYTE_ARRAY_PREFIX_SIZE, STRING_PREFIX_SIZE};
 
-use super::{Column, VID_COLUMN};
+use super::{Table, VID_COLUMN};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Method {
@@ -593,7 +593,7 @@ impl CreateIndex {
         }
     }
 
-    pub fn all_colums_in_dest(&self, columns: &Vec<Column>) -> bool {
+    pub fn index_correct(&self, dest_table: &Table) -> bool {
         fn column_exists(columns: &Vec<String>, column_name: &String) -> bool {
             for c in columns.iter() {
                 if *c == *column_name {
@@ -612,12 +612,12 @@ impl CreateIndex {
             false
         }
 
-        let cols = &columns
+        let cols = &dest_table
+            .columns
             .iter()
             .map(|i| i.name.to_string())
             .collect::<Vec<String>>();
 
-        print!("all_colums_in_dest() {}", self);
         match self {
             CreateIndex::Unknown { defn: _ } => (),
             CreateIndex::Parsed {
@@ -637,27 +637,29 @@ impl CreateIndex {
                                 return false;
                             }
                         }
-                        Expr::BlockRange | Expr::BlockRangeLower | Expr::BlockRangeUpper => (),
-                        Expr::Vid => {
-                            if !column_exists(cols, &"vid".to_string()) {
+                        Expr::BlockRange | Expr::BlockRangeLower | Expr::BlockRangeUpper => {
+                            if dest_table.immutable {
                                 return false;
                             }
                         }
+                        Expr::Vid => (),
                         Expr::Block => {
                             if !column_exists(cols, &"block".to_string()) {
                                 return false;
                             }
                         }
                         Expr::Unknown(expression) => {
-                            println!("Unknown: {}", expression);
+                            if some_column_contained(expression, &vec!["block_range".to_string()])
+                                && dest_table.immutable
+                            {
+                                return false;
+                            }
                             if !some_column_contained(expression, cols)
                                 && !some_column_contained(
                                     expression,
                                     &vec!["block_range".to_string(), "vid".to_string()],
                                 )
                             {
-                                println!("Not contain: {}", expression);
-                                println!("any of: {:?}", cols);
                                 return false;
                             }
                         }

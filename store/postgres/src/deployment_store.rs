@@ -53,7 +53,7 @@ use crate::detail::ErrorDetail;
 use crate::dynds::DataSourcesTable;
 use crate::primary::DeploymentId;
 use crate::relational::index::{CreateIndex, Method};
-use crate::relational::{Column, Layout, LayoutCache, SqlName, Table};
+use crate::relational::{Layout, LayoutCache, SqlName, Table};
 use crate::relational_queries::FromEntityData;
 use crate::{advisory_lock, catalog, retry};
 use crate::{connection_pool::ConnectionPool, detail};
@@ -2090,15 +2090,14 @@ impl IndexList {
         &self,
         namespace: &String,
         table_name: &String,
-        columns: &Vec<Column>,
+        dest_table: &Table,
         postponed: bool,
         concurent_if_not_exist: bool,
     ) -> Vec<String> {
         let mut arr = vec![];
         if let Some(vec) = self.indexes.get(table_name) {
             for ci in vec {
-                println!("ci: {:?}", ci);
-                if ci.all_colums_in_dest(columns) {
+                if ci.index_correct(dest_table) {
                     if !ci.is_constraint() && !ci.is_pkey() {
                         if postponed == ci.to_postpone() {
                             if let Ok(sql) = ci
@@ -2107,18 +2106,8 @@ impl IndexList {
                             {
                                 arr.push(sql)
                             }
-                        } else {
-                            println!(
-                                "diff stage({}): {}",
-                                postponed,
-                                ci.to_sql(false, false).unwrap()
-                            )
                         }
-                    } else {
-                        println!("skip: {}", ci.to_sql(false, false).unwrap())
                     }
-                } else {
-                    println!("miss in dest: {}", ci.to_sql(false, false).unwrap())
                 }
             }
         }
