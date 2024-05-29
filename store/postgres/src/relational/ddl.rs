@@ -374,6 +374,12 @@ impl Table {
         self.create_table(out)?;
         if is_copy_op && ENV_VARS.postpone_attribute_index_creation {
             if let Some(ind_def) = index_def {
+                // TODO: add the rest of colums like block_range etc. and pass as a parameter
+                let mut cols = self
+                    .columns
+                    .iter()
+                    .map(|i| i.name.to_string())
+                    .collect::<Vec<String>>();
                 let arr = ind_def.indexes_for_table(
                     &self.namespace.to_string(),
                     &self.name.to_string(),
@@ -381,6 +387,7 @@ impl Table {
                     false,
                     false,
                 );
+                println!("CREATE INITIALY: {:?}", arr);
                 for sql in arr {
                     writeln!(out, "{};", sql).expect("properly formated index statements")
                 }

@@ -594,42 +594,78 @@ impl CreateIndex {
     }
 
     pub fn all_colums_in_dest(&self, columns: &Vec<Column>) -> bool {
+        fn column_exists(columns: &Vec<String>, column_name: &String) -> bool {
+            for c in columns.iter() {
+                if *c == *column_name {
+                    return true;
+                }
+            }
+            false
+        }
+
+        fn some_column_contained(expresion: &String, columns: &Vec<String>) -> bool {
+            for c in columns.iter() {
+                if expresion.contains(c) {
+                    return true;
+                }
+            }
+            false
+        }
+
+        let cols = &columns
+            .iter()
+            .map(|i| i.name.to_string())
+            .collect::<Vec<String>>();
+
+        print!("all_colums_in_dest() {}", self);
         match self {
             CreateIndex::Unknown { defn: _ } => (),
-            CreateIndex::Parsed { columns: cols, .. } => {
-                for c in cols {
+            CreateIndex::Parsed {
+                columns: parsed_cols,
+                ..
+            } => {
+                for c in parsed_cols {
                     match c {
                         Expr::Column(column_name) => {
                             // TODO: simplify
-                            if !contains(columns, column_name) {
+                            if !column_exists(cols, column_name) {
                                 return false;
                             }
                         }
                         Expr::Prefix(column_name, _) => {
-                            if !contains(columns, column_name) {
+                            if !column_exists(cols, column_name) {
                                 return false;
                             }
                         }
-                        Expr::BlockRange | Expr::BlockRangeLower | Expr::BlockRangeUpper => {
-                            if !contains(columns, &"block_range".to_string()) {
-                                return false;
-                            }
-                        }
+                        Expr::BlockRange | Expr::BlockRangeLower | Expr::BlockRangeUpper => (),
                         Expr::Vid => {
-                            if !contains(columns, &"vid".to_string()) {
+                            if !column_exists(cols, &"vid".to_string()) {
                                 return false;
                             }
                         }
                         Expr::Block => {
-                            if !contains(columns, &"block".to_string()) {
+                            if !column_exists(cols, &"block".to_string()) {
                                 return false;
                             }
                         }
-                        _ => return false,
+                        Expr::Unknown(expression) => {
+                            println!("Unknown: {}", expression);
+                            if !some_column_contained(expression, cols)
+                                && !some_column_contained(
+                                    expression,
+                                    &vec!["block_range".to_string(), "vid".to_string()],
+                                )
+                            {
+                                println!("Not contain: {}", expression);
+                                println!("any of: {:?}", cols);
+                                return false;
+                            }
+                        }
                     }
                 }
             }
         }
+        println!("TRUE");
         true
     }
 
@@ -673,15 +709,6 @@ fn has_suffix(s: &str, suffix: &str) -> bool {
 
 fn has_prefix(s: &str, prefix: &str) -> bool {
     s.starts_with(prefix) || s.ends_with("\"") && s.starts_with(format!("\"{}", prefix).as_str())
-}
-
-fn contains(columns: &Vec<Column>, column_name: &String) -> bool {
-    for c in columns.iter() {
-        if c.name.to_string() == *column_name {
-            return true;
-        }
-    }
-    false
 }
 
 #[test]

@@ -2097,15 +2097,28 @@ impl IndexList {
         let mut arr = vec![];
         if let Some(vec) = self.indexes.get(table_name) {
             for ci in vec {
+                println!("ci: {:?}", ci);
                 if ci.all_colums_in_dest(columns) {
-                    if !ci.is_constraint() && !ci.is_pkey() && postponed == ci.to_postpone() {
-                        if let Ok(sql) = ci
-                            .with_nsp(namespace.clone())
-                            .to_sql(concurent_if_not_exist, concurent_if_not_exist)
-                        {
-                            arr.push(sql)
+                    if !ci.is_constraint() && !ci.is_pkey() {
+                        if postponed == ci.to_postpone() {
+                            if let Ok(sql) = ci
+                                .with_nsp(namespace.clone())
+                                .to_sql(concurent_if_not_exist, concurent_if_not_exist)
+                            {
+                                arr.push(sql)
+                            }
+                        } else {
+                            println!(
+                                "diff stage({}): {}",
+                                postponed,
+                                ci.to_sql(false, false).unwrap()
+                            )
                         }
+                    } else {
+                        println!("skip: {}", ci.to_sql(false, false).unwrap())
                     }
+                } else {
+                    println!("miss in dest: {}", ci.to_sql(false, false).unwrap())
                 }
             }
         }
