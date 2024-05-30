@@ -550,6 +550,23 @@ impl CreateIndex {
         }
     }
 
+    pub fn is_imm_id(&self, immutable: bool) -> bool {
+        // on imutable tables the id constraint is specified on tabe creation
+        if immutable {
+            match self {
+                CreateIndex::Unknown { defn: _ } => (),
+                CreateIndex::Parsed { columns, .. } => {
+                    if columns.len() == 1 {
+                        if columns[0].to_string() == "id" {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
+
     pub fn is_pkey(&self) -> bool {
         let suffix = "_pkey";
         match self {

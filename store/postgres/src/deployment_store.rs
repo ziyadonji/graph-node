@@ -2096,7 +2096,7 @@ impl IndexList {
         if let Some(vec) = self.indexes.get(table_name) {
             for ci in vec {
                 if ci.index_correct(dest_table) {
-                    if !ci.is_constraint() && !ci.is_pkey() {
+                    if !ci.is_constraint() && !ci.is_pkey() && !ci.is_imm_id(dest_table.immutable) {
                         if postponed == ci.to_postpone() {
                             if let Ok(sql) = ci
                                 .with_nsp(namespace.clone())
