@@ -261,6 +261,30 @@ impl Table {
         (method, index_expr)
     }
 
+    pub(crate) fn create_postponed_indexes(&self, skip_colums: Vec<String>) -> Vec<String> {
+        let mut indexing_queries = vec![];
+        let columns = self.colums_to_index();
+
+        for (column_index, column) in columns.enumerate() {
+            let (method, index_expr) =
+                Self::calculate_attr_index_method_and_expression(self.immutable, column);
+            if !column.is_list()
+                && method == "btree"
+                && column.name.as_str() != "id"
+                && !skip_colums.contains(&column.name.to_string())
+            {
+                let sql = format!(
+                    "create index concurrently if not exists attr_{table_index}_{column_index}_{table_name}_{column_name}\n    on {qname} using {method}({index_expr});\n",
+                    table_index = self.position,
+                    table_name = self.name,
+                    column_name = column.name,
+                    qname = self.qualified_name,
+                );
+                indexing_queries.push(sql);
+            }
+        }
+        indexing_queries
+    }
     fn create_attribute_indexes(&self, out: &mut String) -> fmt::Result {
         let columns = self.colums_to_index();
 

@@ -36,6 +36,7 @@ use graph::{
     prelude::{info, o, warn, BlockNumber, BlockPtr, Logger, StoreError, ENV_VARS},
     schema::EntityType,
 };
+use itertools::Itertools;
 
 use crate::{
     advisory_lock, catalog,
@@ -822,6 +823,26 @@ impl Connection {
 
             for (_, sql) in arr {
                 let query = sql_query(format!("{};", sql));
+                query.execute(conn)?;
+            }
+        }
+
+        // Second create indexes for the new fields by skipping those created in the first step.
+        for table in state.tables.iter() {
+            let orig_colums = table
+                .batch
+                .src
+                .columns
+                .iter()
+                .map(|c| c.name.to_string())
+                .collect_vec();
+            for sql in table
+                .batch
+                .dst
+                .create_postponed_indexes(orig_colums)
+                .into_iter()
+            {
+                let query = sql_query(sql);
                 query.execute(conn)?;
             }
         }
