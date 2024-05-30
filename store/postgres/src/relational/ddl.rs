@@ -374,7 +374,7 @@ impl Table {
                 false,
                 false,
             );
-            for sql in arr {
+            for (_, sql) in arr {
                 writeln!(out, "{};", sql).expect("properly formated index statements")
             }
             Ok(())

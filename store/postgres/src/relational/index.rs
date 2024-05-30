@@ -554,7 +554,7 @@ impl CreateIndex {
         // on imutable tables the id constraint is specified on tabe creation
         if immutable {
             match self {
-                CreateIndex::Unknown { defn: _ } => (),
+                CreateIndex::Unknown { .. } => (),
                 CreateIndex::Parsed { columns, .. } => {
                     if columns.len() == 1 {
                         if columns[0].to_string() == "id" {
@@ -570,7 +570,7 @@ impl CreateIndex {
     pub fn is_pkey(&self) -> bool {
         let suffix = "_pkey";
         match self {
-            CreateIndex::Unknown { defn: _ } => false,
+            CreateIndex::Unknown { .. } => false,
             CreateIndex::Parsed {
                 unique,
                 name,
@@ -585,14 +585,14 @@ impl CreateIndex {
     pub fn is_constraint(&self) -> bool {
         let suffix = format!("{}_excl", BLOCK_RANGE_COLUMN);
         match self {
-            CreateIndex::Unknown { defn: _ } => false,
+            CreateIndex::Unknown { .. } => false,
             CreateIndex::Parsed { name, .. } => has_suffix(name, &suffix),
         }
     }
 
     pub fn to_postpone(&self) -> bool {
         match self {
-            CreateIndex::Unknown { defn: _ } => false,
+            CreateIndex::Unknown { .. } => false,
             CreateIndex::Parsed {
                 name,
                 columns,
@@ -607,6 +607,13 @@ impl CreateIndex {
                 }
                 has_prefix(name, "attr_") && self.is_attribute_index()
             }
+        }
+    }
+
+    pub fn name(&self) -> Option<String> {
+        match self {
+            CreateIndex::Unknown { .. } => None,
+            CreateIndex::Parsed { name, .. } => Some(name.clone()),
         }
     }
 
@@ -644,7 +651,6 @@ impl CreateIndex {
                 for c in parsed_cols {
                     match c {
                         Expr::Column(column_name) => {
-                            // TODO: simplify
                             if !column_exists(cols, column_name) {
                                 return false;
                             }
@@ -684,7 +690,6 @@ impl CreateIndex {
                 }
             }
         }
-        println!("TRUE");
         true
     }
 

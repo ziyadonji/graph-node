@@ -820,23 +820,11 @@ impl Connection {
                 true,
             );
 
-            println!("POSTPONED: {:?}", arr);
-
-            for sql in arr {
+            for (_, sql) in arr {
                 let query = sql_query(format!("{};", sql));
                 query.execute(conn)?;
             }
         }
-        // Second create the ones for the new fields by skipping those created in the first step.
-        // Here we create both the initial and postponed ones.
-        // TODO: above
-        // let conn = self.conn.deref_mut();
-        // for table in state.tables.iter() {
-        //     for sql in table.batch.dst.create_postponed_indexes().into_iter() {
-        //         let query = sql_query(sql);
-        //         query.execute(conn)?;
-        //     }
-        // }
 
         self.copy_private_data_sources(&state)?;
 
