@@ -180,6 +180,22 @@ impl Expr {
         }
     }
 
+    fn is_same_kind_columns(current: &Vec<Expr>, orig: &Vec<Expr>) -> bool {
+        if orig.len() != current.len() {
+            return false;
+        }
+        for i in 0..orig.len() {
+            let o = orig[i].to_sql();
+            let n = current[i].to_sql();
+
+            // check that string n starts with o
+            if n.len() < o.len() || n[0..o.len()] != o {
+                return false;
+            }
+        }
+        true
+    }
+
     fn to_sql(&self) -> String {
         match self {
             Expr::Column(name) => name.to_string(),
@@ -471,8 +487,7 @@ impl CreateIndex {
         }
     }
 
-    /// Return `true` if `self` is one of the indexes we create by default
-    pub fn is_default_index(&self) -> bool {
+    pub fn is_default_non_attr_index(&self) -> bool {
         lazy_static! {
             static ref DEFAULT_INDEXES: Vec<CreateIndex> = {
                 fn dummy(
@@ -513,7 +528,12 @@ impl CreateIndex {
             };
         }
 
-        self.is_attribute_index() || DEFAULT_INDEXES.iter().any(|idx| self.is_same_index(idx))
+        DEFAULT_INDEXES.iter().any(|idx| self.is_same_index(idx))
+    }
+
+    /// Return `true` if `self` is one of the indexes we create by default
+    pub fn is_default_index(&self) -> bool {
+        self.is_attribute_index() || self.is_default_non_attr_index()
     }
 
     fn is_same_index(&self, other: &CreateIndex) -> bool {
@@ -543,21 +563,21 @@ impl CreateIndex {
             ) => {
                 unique == o_unique
                     && method == o_method
-                    && columns == o_columns
+                    && Expr::is_same_kind_columns(columns, o_columns)
                     && cond == o_cond
                     && with == o_with
             }
         }
     }
 
-    pub fn is_imm_id(&self, immutable: bool) -> bool {
-        // on imutable tables the id constraint is specified on tabe creation
+    pub fn is_id_immutable_table(&self, immutable: bool) -> bool {
+        // on imutable tables the id constraint is specified at table creation
         if immutable {
             match self {
                 CreateIndex::Unknown { .. } => (),
                 CreateIndex::Parsed { columns, .. } => {
                     if columns.len() == 1 {
-                        if columns[0].to_string() == "id" {
+                        if columns[0].is_id() {
                             return true;
                         }
                     }
@@ -567,30 +587,11 @@ impl CreateIndex {
         false
     }
 
-    pub fn is_pkey(&self) -> bool {
-        let suffix = "_pkey";
-        match self {
-            CreateIndex::Unknown { .. } => false,
-            CreateIndex::Parsed {
-                unique,
-                name,
-                columns,
-                ..
-            } => {
-                *unique && has_suffix(name, suffix) && columns.len() == 1 && columns[0] == Expr::Vid
-            }
-        }
-    }
-
-    pub fn is_constraint(&self) -> bool {
-        let suffix = format!("{}_excl", BLOCK_RANGE_COLUMN);
-        match self {
-            CreateIndex::Unknown { .. } => false,
-            CreateIndex::Parsed { name, .. } => has_suffix(name, &suffix),
-        }
-    }
-
     pub fn to_postpone(&self) -> bool {
+        fn has_prefix(s: &str, prefix: &str) -> bool {
+            s.starts_with(prefix)
+                || s.ends_with("\"") && s.starts_with(format!("\"{}", prefix).as_str())
+        }
         match self {
             CreateIndex::Unknown { .. } => false,
             CreateIndex::Parsed {
@@ -617,7 +618,7 @@ impl CreateIndex {
         }
     }
 
-    pub fn index_correct(&self, dest_table: &Table) -> bool {
+    pub fn fields_exist_in_dest(&self, dest_table: &Table) -> bool {
         fn column_exists(columns: &Vec<String>, column_name: &String) -> bool {
             for c in columns.iter() {
                 if *c == *column_name {
@@ -725,14 +726,6 @@ impl CreateIndex {
             }
         }
     }
-}
-
-fn has_suffix(s: &str, suffix: &str) -> bool {
-    s.ends_with(suffix) || s.starts_with("\"") && s.ends_with(format!("{}\"", suffix).as_str())
-}
-
-fn has_prefix(s: &str, prefix: &str) -> bool {
-    s.starts_with(prefix) || s.ends_with("\"") && s.starts_with(format!("\"{}", prefix).as_str())
 }
 
 #[test]

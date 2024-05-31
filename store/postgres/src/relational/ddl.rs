@@ -390,6 +390,7 @@ impl Table {
         out: &mut String,
     ) -> fmt::Result {
         self.create_table(out)?;
+        self.create_time_travel_indexes(catalog, out)?;
         if index_def.is_some() && ENV_VARS.postpone_attribute_index_creation {
             let arr = index_def.unwrap().indexes_for_table(
                 &self.namespace.to_string(),
@@ -401,12 +402,10 @@ impl Table {
             for (_, sql) in arr {
                 writeln!(out, "{};", sql).expect("properly formated index statements")
             }
-            Ok(())
         } else {
-            self.create_time_travel_indexes(catalog, out)?;
             self.create_attribute_indexes(out)?;
-            self.create_aggregate_indexes(schema, out)
         }
+        self.create_aggregate_indexes(schema, out)
     }
 
     pub fn exclusion_ddl(&self, out: &mut String) -> fmt::Result {

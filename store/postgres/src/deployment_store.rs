@@ -2104,16 +2104,16 @@ impl IndexList {
         let mut arr = vec![];
         if let Some(vec) = self.indexes.get(table_name) {
             for ci in vec {
-                if ci.index_correct(dest_table) {
-                    if !ci.is_constraint() && !ci.is_pkey() && !ci.is_imm_id(dest_table.immutable) {
-                        if postponed == ci.to_postpone() {
-                            if let Ok(sql) = ci
-                                .with_nsp(namespace.clone())
-                                .to_sql(concurent_if_not_exist, concurent_if_not_exist)
-                            {
-                                arr.push((ci.name(), sql))
-                            }
-                        }
+                if ci.fields_exist_in_dest(dest_table)
+                    && !ci.is_default_non_attr_index()
+                    && !ci.is_id_immutable_table(dest_table.immutable)
+                    && postponed == ci.to_postpone()
+                {
+                    if let Ok(sql) = ci
+                        .with_nsp(namespace.clone())
+                        .to_sql(concurent_if_not_exist, concurent_if_not_exist)
+                    {
+                        arr.push((ci.name(), sql))
                     }
                 }
             }

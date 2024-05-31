@@ -808,8 +808,9 @@ impl Connection {
             progress.table_finished(&table.batch);
         }
 
-        // Create indexes for all the btree attributes that were postponed at the start of
-        // the copy/graft operations. First recreate the ones from the original subgraph.
+        // Create indexes for all the attributes that were postponed at the start of
+        // the copy/graft operations.
+        // First recreate the indexes that existed in the original subgraph.
         let conn = self.conn.deref_mut();
         let namespace = self.dst.site.namespace.as_str().to_string();
         for table in state.tables.iter() {
@@ -827,7 +828,8 @@ impl Connection {
             }
         }
 
-        // Second create indexes for the new fields by skipping those created in the first step.
+        // Second create the indexes for the new fields.
+        // Here we need to skip those created in the first step for the old fields.
         for table in state.tables.iter() {
             let orig_colums = table
                 .batch
