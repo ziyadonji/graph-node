@@ -263,7 +263,7 @@ impl Table {
 
     pub(crate) fn create_postponed_indexes(&self, skip_colums: Vec<String>) -> Vec<String> {
         let mut indexing_queries = vec![];
-        let columns = self.colums_to_index();
+        let columns = self.columns_to_index();
 
         for (column_index, column) in columns.enumerate() {
             let (method, index_expr) =
@@ -286,7 +286,7 @@ impl Table {
         indexing_queries
     }
     fn create_attribute_indexes(&self, out: &mut String) -> fmt::Result {
-        let columns = self.colums_to_index();
+        let columns = self.columns_to_index();
 
         for (column_index, column) in columns.enumerate() {
             let (method, index_expr) =
@@ -311,7 +311,7 @@ impl Table {
         writeln!(out)
     }
 
-    fn colums_to_index(&self) -> impl Iterator<Item = &Column> {
+    fn columns_to_index(&self) -> impl Iterator<Item = &Column> {
         // Skip columns whose type is an array of enum, since there is no
         // good way to index them with Postgres 9.6. Once we move to
         // Postgres 11, we can enable that (tracked in graph-node issue

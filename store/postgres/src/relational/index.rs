@@ -628,9 +628,9 @@ impl CreateIndex {
             false
         }
 
-        fn some_column_contained(expresion: &String, columns: &Vec<String>) -> bool {
+        fn some_column_contained(expression: &String, columns: &Vec<String>) -> bool {
             for c in columns.iter() {
-                if expresion.contains(c) {
+                if expression.contains(c) {
                     return true;
                 }
             }
