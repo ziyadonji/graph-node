@@ -1612,11 +1612,10 @@ impl DeploymentStore {
         let mut conn = self.get_conn()?;
 
         if ENV_VARS.postpone_attribute_index_creation {
-            let namespace = site.namespace.as_str();
             let index_list = self.load_indexes(site.clone())?;
             for table in dst.tables.values() {
                 for (ind_name, create_query) in index_list.indexes_for_table(
-                    &namespace.to_string(),
+                    &site.namespace,
                     &table.name.to_string(),
                     table,
                     true,
@@ -1637,7 +1636,7 @@ impl DeploymentStore {
                             AND (c.relname = $2)
                             AND (i.relname = $3);"#;
                         let ii_vec = sql_query(query)
-                            .bind::<Text, _>(namespace)
+                            .bind::<Text, _>(site.namespace.to_string())
                             .bind::<Text, _>(table_name)
                             .bind::<Text, _>(index_name.clone())
                             .get_results::<IndexInfo>(&mut conn)?
@@ -1649,8 +1648,11 @@ impl DeploymentStore {
                         // isn't true, drop it and recreate it.
                         if ii_vec.len() == 0 || !ii_vec[0].isvalid || !ii_vec[0].isready {
                             if ii_vec.len() > 0 {
-                                let drop_query =
-                                    sql_query(format!("DROP INDEX {}.{};", namespace, index_name));
+                                let drop_query = sql_query(format!(
+                                    "DROP INDEX {}.{};",
+                                    site.namespace.to_string(),
+                                    index_name
+                                ));
                                 conn.transaction(|conn| drop_query.execute(conn))?;
                             }
                             sql_query(create_query).execute(&mut conn)?;
@@ -2095,7 +2097,7 @@ pub struct IndexList {
 impl IndexList {
     pub fn indexes_for_table(
         &self,
-        namespace: &String,
+        namespace: &crate::primary::Namespace,
         table_name: &String,
         dest_table: &Table,
         postponed: bool,
@@ -2110,7 +2112,7 @@ impl IndexList {
                     && postponed == ci.to_postpone()
                 {
                     if let Ok(sql) = ci
-                        .with_nsp(namespace.clone())
+                        .with_nsp(namespace.to_string())
                         .to_sql(concurent_if_not_exist, concurent_if_not_exist)
                     {
                         arr.push((ci.name(), sql))

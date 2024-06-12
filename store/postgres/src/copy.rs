@@ -812,10 +812,9 @@ impl Connection {
         // the copy/graft operations.
         // First recreate the indexes that existed in the original subgraph.
         let conn = self.conn.deref_mut();
-        let namespace = self.dst.site.namespace.as_str().to_string();
         for table in state.tables.iter() {
             let arr = index_list.indexes_for_table(
-                &namespace,
+                &self.dst.site.namespace,
                 &table.batch.src.name.to_string(),
                 &table.batch.dst,
                 true,

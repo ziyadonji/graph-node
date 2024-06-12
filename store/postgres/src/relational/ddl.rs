@@ -8,11 +8,14 @@ use graph::{
     schema::InputSchema,
 };
 
-use crate::relational::{
-    ColumnType, BLOCK_COLUMN, BLOCK_RANGE_COLUMN, BYTE_ARRAY_PREFIX_SIZE, STRING_PREFIX_SIZE,
-    VID_COLUMN,
-};
 use crate::{block_range::CAUSALITY_REGION_COLUMN, deployment_store::IndexList};
+use crate::{
+    primary::Namespace,
+    relational::{
+        ColumnType, BLOCK_COLUMN, BLOCK_RANGE_COLUMN, BYTE_ARRAY_PREFIX_SIZE, STRING_PREFIX_SIZE,
+        VID_COLUMN,
+    },
+};
 
 use super::{Catalog, Column, Layout, SqlName, Table};
 
@@ -392,8 +395,9 @@ impl Table {
         self.create_table(out)?;
         self.create_time_travel_indexes(catalog, out)?;
         if index_def.is_some() && ENV_VARS.postpone_attribute_index_creation {
+            let namespace = Namespace::new(self.namespace.to_string()).map_err(|_| fmt::Error)?;
             let arr = index_def.unwrap().indexes_for_table(
-                &self.namespace.to_string(),
+                &namespace,
                 &self.name.to_string(),
                 &self,
                 false,
