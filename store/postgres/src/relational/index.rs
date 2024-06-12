@@ -627,21 +627,11 @@ impl CreateIndex {
 
     pub fn fields_exist_in_dest(&self, dest_table: &Table) -> bool {
         fn column_exists(columns: &Vec<String>, column_name: &String) -> bool {
-            for c in columns.iter() {
-                if *c == *column_name {
-                    return true;
-                }
-            }
-            false
+            columns.iter().any(|c| c == column_name)
         }
 
         fn some_column_contained(expression: &String, columns: &Vec<String>) -> bool {
-            for c in columns.iter() {
-                if expression.contains(c) {
-                    return true;
-                }
-            }
-            false
+            columns.iter().any(|c| expression.contains(c))
         }
 
         let cols = &dest_table
