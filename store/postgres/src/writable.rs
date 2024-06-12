@@ -34,8 +34,9 @@ use graph::{
 };
 use store::StoredDynamicDataSource;
 
-use crate::deployment_store::{DeploymentStore, IndexList};
+use crate::deployment_store::DeploymentStore;
 use crate::primary::DeploymentId;
+use crate::relational::index::IndexList;
 use crate::retry;
 use crate::{primary, primary::Site, relational::Layout, SubgraphStore};
 

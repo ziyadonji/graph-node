@@ -53,7 +53,7 @@ use crate::deployment::{self, OnSync};
 use crate::detail::ErrorDetail;
 use crate::dynds::DataSourcesTable;
 use crate::primary::DeploymentId;
-use crate::relational::index::{CreateIndex, Method};
+use crate::relational::index::{CreateIndex, IndexList, Method};
 use crate::relational::{Layout, LayoutCache, SqlName, Table};
 use crate::relational_queries::FromEntityData;
 use crate::{advisory_lock, catalog, retry};
@@ -2074,60 +2074,5 @@ impl PruneReporter for OngoingPruneReporter {
             "time_s" => self.start.elapsed().as_secs(),
             "analyze_time_s" => self.analyze_duration.as_secs()
         )
-    }
-}
-
-#[derive(Debug)]
-pub struct IndexList {
-    indexes: HashMap<String, Vec<CreateIndex>>,
-}
-
-impl IndexList {
-    pub fn load(
-        conn: &mut PgConnection,
-        site: Arc<Site>,
-        store: DeploymentStore,
-    ) -> Result<IndexList, StoreError> {
-        let mut list = IndexList {
-            indexes: HashMap::new(),
-        };
-        let schema_name = site.namespace.clone();
-        let layout = store.layout(conn, site)?;
-        for (_, table) in &layout.tables {
-            let table_name = table.name.as_str();
-            let indexes = catalog::indexes_for_table(conn, schema_name.as_str(), table_name)
-                .map_err(StoreError::from)?;
-            let collect: Vec<CreateIndex> = indexes.into_iter().map(CreateIndex::parse).collect();
-            list.indexes.insert(table_name.to_string(), collect);
-        }
-        Ok(list)
-    }
-
-    pub fn indexes_for_table(
-        &self,
-        namespace: &crate::primary::Namespace,
-        table_name: &String,
-        dest_table: &Table,
-        postponed: bool,
-        concurent_if_not_exist: bool,
-    ) -> Vec<(Option<String>, String)> {
-        let mut arr = vec![];
-        if let Some(vec) = self.indexes.get(table_name) {
-            for ci in vec {
-                if ci.fields_exist_in_dest(dest_table)
-                    && !ci.is_default_non_attr_index()
-                    && !ci.is_id_immutable_table(dest_table.immutable)
-                    && postponed == ci.to_postpone()
-                {
-                    if let Ok(sql) = ci
-                        .with_nsp(namespace.to_string())
-                        .to_sql(concurent_if_not_exist, concurent_if_not_exist)
-                    {
-                        arr.push((ci.name(), sql))
-                    }
-                }
-            }
-        }
-        arr
     }
 }

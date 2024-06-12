@@ -38,6 +38,7 @@ use graph::schema::{
     EntityKey, EntityType, Field, FulltextConfig, FulltextDefinition, InputSchema,
 };
 use graph::slog::warn;
+use index::IndexList;
 use inflector::Inflector;
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -49,7 +50,6 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use crate::deployment_store::IndexList;
 use crate::relational_queries::{
     ConflictingEntitiesData, ConflictingEntitiesQuery, FindChangesQuery, FindDerivedQuery,
     FindPossibleDeletionsQuery, ReturnedEntityData,

@@ -1,6 +1,10 @@
 //! Parse Postgres index definition into a form that is meaningful for us.
+use std::collections::HashMap;
 use std::fmt::{Display, Write};
+use std::sync::Arc;
 
+use diesel::PgConnection;
+use graph::components::store::StoreError;
 use graph::itertools::Itertools;
 use graph::prelude::{
     lazy_static,
@@ -9,6 +13,9 @@ use graph::prelude::{
 };
 
 use crate::block_range::{BLOCK_COLUMN, BLOCK_RANGE_COLUMN};
+use crate::catalog;
+use crate::command_support::catalog::Site;
+use crate::deployment_store::DeploymentStore;
 use crate::relational::{BYTE_ARRAY_PREFIX_SIZE, STRING_PREFIX_SIZE};
 
 use super::{Table, VID_COLUMN};
@@ -725,6 +732,61 @@ impl CreateIndex {
                 Ok(sql)
             }
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct IndexList {
+    indexes: HashMap<String, Vec<CreateIndex>>,
+}
+
+impl IndexList {
+    pub fn load(
+        conn: &mut PgConnection,
+        site: Arc<Site>,
+        store: DeploymentStore,
+    ) -> Result<IndexList, StoreError> {
+        let mut list = IndexList {
+            indexes: HashMap::new(),
+        };
+        let schema_name = site.namespace.clone();
+        let layout = store.layout(conn, site)?;
+        for (_, table) in &layout.tables {
+            let table_name = table.name.as_str();
+            let indexes = catalog::indexes_for_table(conn, schema_name.as_str(), table_name)
+                .map_err(StoreError::from)?;
+            let collect: Vec<CreateIndex> = indexes.into_iter().map(CreateIndex::parse).collect();
+            list.indexes.insert(table_name.to_string(), collect);
+        }
+        Ok(list)
+    }
+
+    pub fn indexes_for_table(
+        &self,
+        namespace: &crate::primary::Namespace,
+        table_name: &String,
+        dest_table: &Table,
+        postponed: bool,
+        concurent_if_not_exist: bool,
+    ) -> Vec<(Option<String>, String)> {
+        let mut arr = vec![];
+        if let Some(vec) = self.indexes.get(table_name) {
+            for ci in vec {
+                if ci.fields_exist_in_dest(dest_table)
+                    && !ci.is_default_non_attr_index()
+                    && !ci.is_id_immutable_table(dest_table.immutable)
+                    && postponed == ci.to_postpone()
+                {
+                    if let Ok(sql) = ci
+                        .with_nsp(namespace.to_string())
+                        .to_sql(concurent_if_not_exist, concurent_if_not_exist)
+                    {
+                        arr.push((ci.name(), sql))
+                    }
+                }
+            }
+        }
+        arr
     }
 }
 

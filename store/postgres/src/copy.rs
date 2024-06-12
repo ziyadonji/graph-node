@@ -40,9 +40,9 @@ use itertools::Itertools;
 
 use crate::{
     advisory_lock, catalog,
-    deployment_store::IndexList,
     dynds::DataSourcesTable,
     primary::{DeploymentId, Site},
+    relational::index::IndexList,
 };
 use crate::{connection_pool::ConnectionPool, relational::Layout};
 use crate::{relational::Table, relational_queries as rq};

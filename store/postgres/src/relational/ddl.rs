@@ -8,7 +8,7 @@ use graph::{
     schema::InputSchema,
 };
 
-use crate::{block_range::CAUSALITY_REGION_COLUMN, deployment_store::IndexList};
+use crate::block_range::CAUSALITY_REGION_COLUMN;
 use crate::{
     primary::Namespace,
     relational::{
@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-use super::{Catalog, Column, Layout, SqlName, Table};
+use super::{index::IndexList, Catalog, Column, Layout, SqlName, Table};
 
 // In debug builds (for testing etc.) unconditionally create exclusion constraints, in release
 // builds for production, skip them

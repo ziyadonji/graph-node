@@ -39,9 +39,11 @@ use graph::{
 use crate::{
     connection_pool::ConnectionPool,
     deployment::{OnSync, SubgraphHealth},
-    deployment_store::IndexList,
     primary::{self, DeploymentId, Mirror as PrimaryMirror, Site},
-    relational::{index::Method, Layout},
+    relational::{
+        index::{IndexList, Method},
+        Layout,
+    },
     writable::WritableStore,
     NotificationSender,
 };
