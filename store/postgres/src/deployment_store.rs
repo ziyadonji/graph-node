@@ -742,19 +742,7 @@ impl DeploymentStore {
         let store = self.clone();
         let mut binding = self.get_conn()?;
         let conn = binding.deref_mut();
-        let mut list = IndexList {
-            indexes: HashMap::new(),
-        };
-        let schema_name = site.namespace.clone();
-        let layout = store.layout(conn, site)?;
-        for (_, table) in &layout.tables {
-            let table_name = table.name.as_str();
-            let indexes = catalog::indexes_for_table(conn, schema_name.as_str(), table_name)
-                .map_err(StoreError::from)?;
-            let collect: Vec<CreateIndex> = indexes.into_iter().map(CreateIndex::parse).collect();
-            list.indexes.insert(table_name.to_string(), collect);
-        }
-        Ok(list)
+        IndexList::load(conn, site, store)
     }
 
     /// Drops an index for a given deployment, concurrently.
@@ -2095,6 +2083,26 @@ pub struct IndexList {
 }
 
 impl IndexList {
+    pub fn load(
+        conn: &mut PgConnection,
+        site: Arc<Site>,
+        store: DeploymentStore,
+    ) -> Result<IndexList, StoreError> {
+        let mut list = IndexList {
+            indexes: HashMap::new(),
+        };
+        let schema_name = site.namespace.clone();
+        let layout = store.layout(conn, site)?;
+        for (_, table) in &layout.tables {
+            let table_name = table.name.as_str();
+            let indexes = catalog::indexes_for_table(conn, schema_name.as_str(), table_name)
+                .map_err(StoreError::from)?;
+            let collect: Vec<CreateIndex> = indexes.into_iter().map(CreateIndex::parse).collect();
+            list.indexes.insert(table_name.to_string(), collect);
+        }
+        Ok(list)
+    }
+
     pub fn indexes_for_table(
         &self,
         namespace: &crate::primary::Namespace,

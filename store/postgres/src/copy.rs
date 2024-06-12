@@ -862,6 +862,8 @@ impl Connection {
     /// block is guaranteed to not be subject to chain reorgs. All data up
     /// to and including `target_block` will be copied.
     ///
+    /// The parameter index_list is a list of indexes that exist on the `src`.
+    ///
     /// The copy logic makes heavy use of the fact that the `vid` and
     /// `block_range` of entity versions are related since for two entity
     /// versions `v1` and `v2` such that `v1.vid <= v2.vid`, we know that
