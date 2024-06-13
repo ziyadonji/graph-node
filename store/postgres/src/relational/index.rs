@@ -579,16 +579,14 @@ impl CreateIndex {
         }
     }
 
-    pub fn is_id_immutable_table(&self, immutable: bool) -> bool {
+    pub fn is_id(&self) -> bool {
         // on imutable tables the id constraint is specified at table creation
-        if immutable {
-            match self {
-                CreateIndex::Unknown { .. } => (),
-                CreateIndex::Parsed { columns, .. } => {
-                    if columns.len() == 1 {
-                        if columns[0].is_id() {
-                            return true;
-                        }
+        match self {
+            CreateIndex::Unknown { .. } => (),
+            CreateIndex::Parsed { columns, .. } => {
+                if columns.len() == 1 {
+                    if columns[0].is_id() {
+                        return true;
                     }
                 }
             }
@@ -766,7 +764,7 @@ impl IndexList {
             for ci in vec {
                 if ci.fields_exist_in_dest(dest_table)
                     && !ci.is_default_non_attr_index()
-                    && !ci.is_id_immutable_table(dest_table.immutable)
+                    && !(ci.is_id() && dest_table.immutable)
                     && postponed == ci.to_postpone()
                 {
                     if let Ok(sql) = ci
