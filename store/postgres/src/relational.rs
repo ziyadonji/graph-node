@@ -363,7 +363,6 @@ impl Layout {
         let table_name = SqlName::verbatim(POI_TABLE.to_owned());
         Table {
             object: poi_type.to_owned(),
-            namespace: SqlName(catalog.site.namespace.to_string()),
             qualified_name: SqlName::qualified_name(&catalog.site.namespace, &table_name),
             name: table_name,
             columns,
@@ -1497,7 +1496,6 @@ impl Table {
 
         let table = Table {
             object: defn.cheap_clone(),
-            namespace: SqlName::verbatim(catalog.site.namespace.to_string()),
             name: table_name,
             qualified_name,
             // Default `is_account_like` to `false`; the caller should call
@@ -1517,7 +1515,6 @@ impl Table {
     pub fn new_like(&self, namespace: &Namespace, name: &SqlName) -> Arc<Table> {
         let other = Table {
             object: self.object.clone(),
-            namespace: SqlName(namespace.to_string()),
             name: name.clone(),
             qualified_name: SqlName::qualified_name(namespace, name),
             columns: self.columns.clone(),
