@@ -627,21 +627,19 @@ impl CreateIndex {
         }
     }
 
-    pub fn fields_exist_in_dest(&self, dest_table: &Table) -> bool {
-        fn column_exists(columns: &Vec<String>, column_name: &String) -> bool {
-            columns.iter().any(|c| c == column_name)
+    pub fn fields_exist_in_dest<'a>(&self, dest_table: &'a Table) -> bool {
+        fn column_exists<'a>(it: &mut impl Iterator<Item = &'a str>, column_name: &String) -> bool {
+            it.any(|c| *c == *column_name)
         }
 
-        fn some_column_contained(expression: &String, columns: &Vec<String>) -> bool {
-            columns.iter().any(|c| expression.contains(c))
+        fn some_column_contained<'a>(
+            expr: &String,
+            it: &mut impl Iterator<Item = &'a str>,
+        ) -> bool {
+            it.any(|c| expr.contains(c))
         }
 
-        let cols = &dest_table
-            .columns
-            .iter()
-            .map(|i| i.name.to_string())
-            .collect::<Vec<String>>();
-
+        let cols = &mut dest_table.columns.iter().map(|i| i.name.as_str());
         match self {
             CreateIndex::Unknown { defn: _ } => (),
             CreateIndex::Parsed {
@@ -672,15 +670,17 @@ impl CreateIndex {
                             }
                         }
                         Expr::Unknown(expression) => {
-                            if some_column_contained(expression, &vec!["block_range".to_string()])
-                                && dest_table.immutable
+                            if some_column_contained(
+                                expression,
+                                &mut (vec!["block_range"]).into_iter(),
+                            ) && dest_table.immutable
                             {
                                 return false;
                             }
                             if !some_column_contained(expression, cols)
                                 && !some_column_contained(
                                     expression,
-                                    &vec!["block_range".to_string(), "vid".to_string()],
+                                    &mut (vec!["block_range", "vid"]).into_iter(),
                                 )
                             {
                                 return false;
