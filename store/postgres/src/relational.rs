@@ -1442,10 +1442,6 @@ pub struct Table {
 
     /// The name of the database table for this type ('thing'), snakecased
     /// version of `object`
-    pub namespace: SqlName,
-
-    /// The name of the database table for this type ('thing'), snakecased
-    /// version of `object`
     pub name: SqlName,
 
     /// The table name qualified with the schema in which the table lives,
