@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use std::fmt::{Display, Write};
 use std::sync::Arc;
 
-use diesel::PgConnection;
+use diesel::sql_types::{Bool, Text};
+use diesel::{sql_query, Connection, PgConnection, RunQueryDsl};
 use graph::components::store::StoreError;
 use graph::itertools::Itertools;
 use graph::prelude::{
@@ -16,9 +17,10 @@ use crate::block_range::{BLOCK_COLUMN, BLOCK_RANGE_COLUMN};
 use crate::catalog;
 use crate::command_support::catalog::Site;
 use crate::deployment_store::DeploymentStore;
+use crate::primary::Namespace;
 use crate::relational::{BYTE_ARRAY_PREFIX_SIZE, STRING_PREFIX_SIZE};
 
-use super::{Table, VID_COLUMN};
+use super::{Layout, Table, VID_COLUMN};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Method {
@@ -753,7 +755,7 @@ impl IndexList {
 
     pub fn indexes_for_table(
         &self,
-        namespace: &crate::primary::Namespace,
+        namespace: &Namespace,
         table_name: &String,
         dest_table: &Table,
         postponed: bool,
@@ -777,6 +779,63 @@ impl IndexList {
             }
         }
         arr
+    }
+    pub fn recreate_invalid_indexes(
+        &self,
+        conn: &mut PgConnection,
+        layout: &Layout,
+    ) -> Result<(), StoreError> {
+        #[derive(QueryableByName, Debug)]
+        struct IndexInfo {
+            #[diesel(sql_type = Bool)]
+            isvalid: bool,
+            #[diesel(sql_type = Bool)]
+            isready: bool,
+        }
+
+        let namespace = &layout.catalog.site.namespace;
+        for table in layout.tables.values() {
+            for (ind_name, create_query) in
+                self.indexes_for_table(namespace, &table.name.to_string(), table, true, true)
+            {
+                if let Some(index_name) = ind_name {
+                    let table_name = table.name.clone();
+                    let query = r#"
+                        SELECT  x.indisvalid           AS isvalid,
+                                x.indisready           AS isready
+                        FROM pg_index x
+                                JOIN pg_class c ON c.oid = x.indrelid
+                                JOIN pg_class i ON i.oid = x.indexrelid
+                                LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+                        WHERE (c.relkind = ANY (ARRAY ['r'::"char", 'm'::"char", 'p'::"char"]))
+                        AND (i.relkind = ANY (ARRAY ['i'::"char", 'I'::"char"]))
+                        AND (n.nspname = $1)
+                        AND (c.relname = $2)
+                        AND (i.relname = $3);"#;
+                    let ii_vec = sql_query(query)
+                        .bind::<Text, _>(namespace.to_string())
+                        .bind::<Text, _>(table_name)
+                        .bind::<Text, _>(index_name.clone())
+                        .get_results::<IndexInfo>(conn)?
+                        .into_iter()
+                        .map(|ii| ii.into())
+                        .collect::<Vec<IndexInfo>>();
+                    assert!(ii_vec.len() <= 1);
+                    if ii_vec.len() == 0 || !ii_vec[0].isvalid || !ii_vec[0].isready {
+                        if ii_vec.len() > 0 {
+                            let drop_query = sql_query(format!(
+                                "DROP INDEX {}.{};",
+                                namespace.to_string(),
+                                index_name
+                            ));
+                            conn.transaction(|conn| drop_query.execute(conn))?;
+                        }
+                        sql_query(create_query).execute(conn)?;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 }
 

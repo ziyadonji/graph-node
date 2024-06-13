@@ -2,7 +2,6 @@ use detail::DeploymentDetail;
 use diesel::connection::SimpleConnection;
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, PooledConnection};
-use diesel::sql_types::{Bool, Text};
 use diesel::{prelude::*, sql_query};
 use graph::anyhow::Context;
 use graph::blockchain::block_stream::FirehoseCursor;
@@ -1484,14 +1483,6 @@ impl DeploymentStore {
         site: Arc<Site>,
         graft_src: Option<(Arc<Layout>, BlockPtr, SubgraphDeploymentEntity, IndexList)>,
     ) -> Result<(), StoreError> {
-        #[derive(QueryableByName, Debug)]
-        struct IndexInfo {
-            #[diesel(sql_type = Bool)]
-            isvalid: bool,
-            #[diesel(sql_type = Bool)]
-            isready: bool,
-        }
-
         let dst = self.find_layout(site.cheap_clone())?;
 
         // If `graft_src` is `Some`, then there is a pending graft.
@@ -1596,58 +1587,11 @@ impl DeploymentStore {
             })?;
         }
 
-        // check if all indexes are valid and recreate them if they aren't
         let mut conn = self.get_conn()?;
-
         if ENV_VARS.postpone_attribute_index_creation {
-            let index_list = self.load_indexes(site.clone())?;
-            for table in dst.tables.values() {
-                for (ind_name, create_query) in index_list.indexes_for_table(
-                    &site.namespace,
-                    &table.name.to_string(),
-                    table,
-                    true,
-                    true,
-                ) {
-                    if let Some(index_name) = ind_name {
-                        let table_name = table.name.clone();
-                        let query = r#"
-                            SELECT  x.indisvalid           AS isvalid,
-                                    x.indisready           AS isready
-                            FROM pg_index x
-                                    JOIN pg_class c ON c.oid = x.indrelid
-                                    JOIN pg_class i ON i.oid = x.indexrelid
-                                    LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
-                            WHERE (c.relkind = ANY (ARRAY ['r'::"char", 'm'::"char", 'p'::"char"]))
-                            AND (i.relkind = ANY (ARRAY ['i'::"char", 'I'::"char"]))
-                            AND (n.nspname = $1)
-                            AND (c.relname = $2)
-                            AND (i.relname = $3);"#;
-                        let ii_vec = sql_query(query)
-                            .bind::<Text, _>(site.namespace.to_string())
-                            .bind::<Text, _>(table_name)
-                            .bind::<Text, _>(index_name.clone())
-                            .get_results::<IndexInfo>(&mut conn)?
-                            .into_iter()
-                            .map(|ii| ii.into())
-                            .collect::<Vec<IndexInfo>>();
-                        assert!(ii_vec.len() <= 1);
-                        // Check if the index is valid. If either isvalid or isready flag of pg_index table
-                        // isn't true, drop it and recreate it.
-                        if ii_vec.len() == 0 || !ii_vec[0].isvalid || !ii_vec[0].isready {
-                            if ii_vec.len() > 0 {
-                                let drop_query = sql_query(format!(
-                                    "DROP INDEX {}.{};",
-                                    site.namespace.to_string(),
-                                    index_name
-                                ));
-                                conn.transaction(|conn| drop_query.execute(conn))?;
-                            }
-                            sql_query(create_query).execute(&mut conn)?;
-                        }
-                    }
-                }
-            }
+            // check if all indexes are valid and recreate them if they aren't
+            self.load_indexes(site.clone())?
+                .recreate_invalid_indexes(&mut conn, &dst)?;
         }
 
         // Make sure the block pointer is set. This is important for newly
