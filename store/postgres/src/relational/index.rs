@@ -609,7 +609,7 @@ impl CreateIndex {
                 method,
                 ..
             } => {
-                if *method != Method::BTree && *method != Method::Brin {
+                if *method != Method::BTree {
                     return false;
                 }
                 if columns.len() == 1 && columns[0].is_id() {
