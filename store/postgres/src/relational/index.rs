@@ -190,6 +190,9 @@ impl Expr {
         }
     }
 
+    /// Here we check if all the columns expressions of the two indexes are "kind of same".
+    /// We ignore the operator class of the expression by checking if the string of the
+    /// original expression is a prexif of the string of the current one.
     fn is_same_kind_columns(current: &Vec<Expr>, orig: &Vec<Expr>) -> bool {
         if orig.len() != current.len() {
             return false;
