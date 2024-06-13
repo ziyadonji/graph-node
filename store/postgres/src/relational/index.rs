@@ -643,7 +643,7 @@ impl CreateIndex {
 
         let cols = &mut dest_table.columns.iter().map(|i| i.name.as_str());
         match self {
-            CreateIndex::Unknown { defn: _ } => (),
+            CreateIndex::Unknown { defn: _ } => return true,
             CreateIndex::Parsed {
                 columns: parsed_cols,
                 ..
