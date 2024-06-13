@@ -819,7 +819,7 @@ impl Connection {
                 &table.batch.dst,
                 true,
                 true,
-            );
+            )?;
 
             for (_, sql) in arr {
                 let query = sql_query(format!("{};", sql));

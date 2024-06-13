@@ -1,4 +1,5 @@
 //! Parse Postgres index definition into a form that is meaningful for us.
+use anyhow::{anyhow, Error};
 use std::collections::HashMap;
 use std::fmt::{Display, Write};
 use std::sync::Arc;
@@ -436,10 +437,10 @@ impl CreateIndex {
         }
     }
 
-    pub fn with_nsp(&self, nsp2: String) -> Self {
+    fn with_nsp(&self, nsp2: String) -> Result<Self, Error> {
         let s = self.clone();
         match s {
-            CreateIndex::Unknown { defn } => CreateIndex::Unknown { defn },
+            CreateIndex::Unknown { defn: _ } => Err(anyhow!("Failed to parse the index")),
             CreateIndex::Parsed {
                 unique,
                 name,
@@ -449,7 +450,7 @@ impl CreateIndex {
                 columns,
                 cond,
                 with,
-            } => CreateIndex::Parsed {
+            } => Ok(CreateIndex::Parsed {
                 unique,
                 name,
                 nsp: nsp2,
@@ -458,7 +459,7 @@ impl CreateIndex {
                 columns,
                 cond,
                 with,
-            },
+            }),
         }
     }
 
@@ -743,8 +744,7 @@ impl IndexList {
         let layout = store.layout(conn, site)?;
         for (_, table) in &layout.tables {
             let table_name = table.name.as_str();
-            let indexes = catalog::indexes_for_table(conn, schema_name.as_str(), table_name)
-                .map_err(StoreError::from)?;
+            let indexes = catalog::indexes_for_table(conn, schema_name.as_str(), table_name)?;
             let collect: Vec<CreateIndex> = indexes.into_iter().map(CreateIndex::parse).collect();
             list.indexes.insert(table_name.to_string(), collect);
         }
@@ -758,7 +758,7 @@ impl IndexList {
         dest_table: &Table,
         postponed: bool,
         concurent_if_not_exist: bool,
-    ) -> Vec<(Option<String>, String)> {
+    ) -> Result<Vec<(Option<String>, String)>, Error> {
         let mut arr = vec![];
         if let Some(vec) = self.indexes.get(table_name) {
             for ci in vec {
@@ -768,7 +768,7 @@ impl IndexList {
                     && postponed == ci.to_postpone()
                 {
                     if let Ok(sql) = ci
-                        .with_nsp(namespace.to_string())
+                        .with_nsp(namespace.to_string())?
                         .to_sql(concurent_if_not_exist, concurent_if_not_exist)
                     {
                         arr.push((ci.name(), sql))
@@ -776,7 +776,7 @@ impl IndexList {
                 }
             }
         }
-        arr
+        Ok(arr)
     }
     pub fn recreate_invalid_indexes(
         &self,
@@ -794,7 +794,7 @@ impl IndexList {
         let namespace = &layout.catalog.site.namespace;
         for table in layout.tables.values() {
             for (ind_name, create_query) in
-                self.indexes_for_table(namespace, &table.name.to_string(), table, true, true)
+                self.indexes_for_table(namespace, &table.name.to_string(), table, true, true)?
             {
                 if let Some(index_name) = ind_name {
                     let table_name = table.name.clone();

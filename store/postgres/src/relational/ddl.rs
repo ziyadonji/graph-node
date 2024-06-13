@@ -397,13 +397,10 @@ impl Table {
         if index_def.is_some() && ENV_VARS.postpone_attribute_index_creation {
             let namespace =
                 Namespace::new(catalog.site.namespace.to_string()).map_err(|_| fmt::Error)?;
-            let arr = index_def.unwrap().indexes_for_table(
-                &namespace,
-                &self.name.to_string(),
-                &self,
-                false,
-                false,
-            );
+            let arr = index_def
+                .unwrap()
+                .indexes_for_table(&namespace, &self.name.to_string(), &self, false, false)
+                .map_err(|_| fmt::Error)?;
             for (_, sql) in arr {
                 writeln!(out, "{};", sql).expect("properly formated index statements")
             }
