@@ -790,8 +790,6 @@ impl IndexList {
         struct IndexInfo {
             #[diesel(sql_type = Bool)]
             isvalid: bool,
-            #[diesel(sql_type = Bool)]
-            isready: bool,
         }
 
         let namespace = &layout.catalog.site.namespace;
@@ -802,8 +800,7 @@ impl IndexList {
                 if let Some(index_name) = ind_name {
                     let table_name = table.name.clone();
                     let query = r#"
-                        SELECT  x.indisvalid           AS isvalid,
-                                x.indisready           AS isready
+                        SELECT  x.indisvalid           AS isvalid
                         FROM pg_index x
                                 JOIN pg_class c ON c.oid = x.indrelid
                                 JOIN pg_class i ON i.oid = x.indexrelid
@@ -822,7 +819,8 @@ impl IndexList {
                         .map(|ii| ii.into())
                         .collect::<Vec<IndexInfo>>();
                     assert!(ii_vec.len() <= 1);
-                    if ii_vec.len() == 0 || !ii_vec[0].isvalid || !ii_vec[0].isready {
+                    if ii_vec.len() == 0 || !ii_vec[0].isvalid {
+                        // if a bad index exist lets first drop it
                         if ii_vec.len() > 0 {
                             let drop_query = sql_query(format!(
                                 "DROP INDEX {}.{};",
