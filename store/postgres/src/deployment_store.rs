@@ -172,6 +172,11 @@ impl DeploymentStore {
         DeploymentStore(Arc::new(store))
     }
 
+    // Parameter index_def is used to copy over the definition of the indexes from the source subgraph
+    // to the destination one. This happens when it is set to Some. In this case also the BTree attribude
+    // indexes are created later on, when the subgraph has synced. In case this parameter is None, all
+    // indexes are created with the default creation strategy for a new subgraph, and also from the very
+    // start.
     pub(crate) fn create_deployment(
         &self,
         schema: &InputSchema,
