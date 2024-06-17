@@ -731,7 +731,7 @@ impl CreateIndex {
 
 #[derive(Debug)]
 pub struct IndexList {
-    indexes: HashMap<String, Vec<CreateIndex>>,
+    pub(crate) indexes: HashMap<String, Vec<CreateIndex>>,
 }
 
 impl IndexList {
@@ -739,7 +739,7 @@ impl IndexList {
         conn: &mut PgConnection,
         site: Arc<Site>,
         store: DeploymentStore,
-    ) -> Result<IndexList, StoreError> {
+    ) -> Result<Self, StoreError> {
         let mut list = IndexList {
             indexes: HashMap::new(),
         };

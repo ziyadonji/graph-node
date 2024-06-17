@@ -288,6 +288,7 @@ impl Table {
         }
         indexing_queries
     }
+
     fn create_attribute_indexes(&self, out: &mut String) -> fmt::Result {
         let columns = self.columns_to_index();
 
